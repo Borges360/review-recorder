@@ -91,6 +91,31 @@ Skills em `.cursor/skills/` (Cursor) ou equivalente na sua ferramenta:
 | `review-recorder-dev` | desenvolvimento geral no monorepo |
 | `session-workflow` | sessões, timeline, export |
 | `git-flow` | branches, releases, PRs |
+| `browser-playwright-hud` | HUD, screenshots, E2E browser |
+| `voice-transcription` | transcrição e correlação fala-tela |
+| `qa-automation-testing` | planejamento de testes e cobertura |
+| `qa-correcao-testes-segura` | corrigir testes sem bypass |
+
+## Agents (Cursor)
+
+Agents em `.cursor/agents/` — escalonar só para tarefas complexas:
+
+| Agent | Quando usar |
+|-------|-------------|
+| `fullstack-architect` | arquitetura cross-cutting, refactors estruturais |
+| `session-engineer` | debug de sessão, timeline, export |
+| `browser-automation` | Playwright, HUD, captura de eventos |
+| `qa-test-fixer` | testes quebrados, regressão |
+
+## Rules e playbooks (Cursor)
+
+| Tipo | Caminho |
+|------|---------|
+| Rules | `.cursor/rules/` — router em `07-workflow-router` |
+| Playbooks | `.cursor/playbooks/` — índice em `playbooks-operacionais-review-recorder.md` |
+| Auditoria | `.cursor/AUDITORIA-AGENTS-RULES-SKILLS.md` |
+
+Rules por contexto: `10-server-fastify`, `20-ui-react`, `30-playwright-browser`, `40-session-timeline`, `50-voice-transcription`, `60-qa-testing`.
 
 ## Arquivos sensíveis (não modificar sem pedido)
 

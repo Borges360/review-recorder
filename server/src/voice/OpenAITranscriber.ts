@@ -25,8 +25,6 @@ export class OpenAITranscriber {
   private reconnectAttempts = 0;
   private closed = false;
   private audioMsWritten = 0;
-  private lastCommitMs = 0;
-  private readonly commitIntervalMs = 3000;
 
   constructor(
     private readonly apiKey: string,
@@ -77,7 +75,12 @@ export class OpenAITranscriber {
           input: {
             format: { type: 'audio/pcm', rate: 24000 },
             transcription: { model: 'gpt-live-transcribe', languages: ['pt'], delay: 'low' },
-            turn_detection: null,
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 700,
+            },
           },
         },
       },
@@ -121,15 +124,11 @@ export class OpenAITranscriber {
       type: 'input_audio_buffer.append',
       audio: pcmBuffer.toString('base64'),
     });
-    if (this.audioMsWritten - this.lastCommitMs >= this.commitIntervalMs) {
-      this.commitBuffer();
-    }
   }
 
   commitBuffer(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     this.send({ type: 'input_audio_buffer.commit' });
-    this.lastCommitMs = this.audioMsWritten;
   }
 
   getAudioMsWritten(): number {
