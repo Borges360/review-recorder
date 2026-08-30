@@ -6,6 +6,7 @@ description: Desenvolve no monorepo review-recorder (Fastify, Playwright, React)
 # review-recorder — desenvolvimento
 
 Leia [AGENTS.md](../../AGENTS.md) primeiro.
+Router: `.cursor/rules/07-workflow-router.mdc` | Playbooks: `.cursor/playbooks/`
 
 ## Setup
 
@@ -45,3 +46,14 @@ npm run test:e2e     # se alterou browser/session
 ## Branch
 
 Criar `feature/<nome>` a partir de `develop`. Ver [docs/GITFLOW.md](../../docs/GITFLOW.md).
+
+## Rules e agents
+
+| Contexto | Rule | Agent (se complexo) |
+|----------|------|---------------------|
+| Server | `10-server-fastify` | `fullstack-architect` |
+| UI | `20-ui-react` | `fullstack-architect` |
+| Browser | `30-playwright-browser` | `browser-automation` |
+| Sessão | `40-session-timeline` | `session-engineer` |
+| Voz | `50-voice-transcription` | — |
+| QA | `60-qa-testing` | `qa-test-fixer` |

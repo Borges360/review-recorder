@@ -6,6 +6,7 @@ alwaysApply: true
 # review-recorder — padrões do projeto
 
 Consulte [AGENTS.md](../../AGENTS.md) como fonte de verdade (agnóstica de ferramenta).
+Router operacional: `07-workflow-router`. Índice: `.cursor/playbooks/playbooks-operacionais-review-recorder.md`.
 
 ## Princípios
 
@@ -13,7 +14,7 @@ Consulte [AGENTS.md](../../AGENTS.md) como fonte de verdade (agnóstica de ferra
 - Server usa ESM: imports com extensão `.js`
 - Nunca commitar `.env`, `sessions/`, `data/`
 - Código/comentários em inglês; docs de usuário em português
-- Rodar `npm test` após mudanças no server
+- Rodar `npm test` após mudanças no server; `npm run test:e2e` se tocar browser/sessão
 
 ## Git Flow
 
@@ -26,3 +27,14 @@ Consulte [AGENTS.md](../../AGENTS.md) como fonte de verdade (agnóstica de ferra
 - `server/` — Fastify + Playwright backend
 - `ui/` — React Control UI (porta 5179)
 - Workspaces npm; lint na raiz
+
+## Rules por contexto
+
+| Contexto | Rule |
+|----------|------|
+| Server/Fastify | `10-server-fastify` |
+| Control UI | `20-ui-react` |
+| Browser/HUD | `30-playwright-browser` |
+| Sessão/timeline | `40-session-timeline` |
+| Voz | `50-voice-transcription` |
+| QA/testes | `60-qa-testing` |

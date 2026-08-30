@@ -5,6 +5,9 @@ description: Trabalha com sessões de revisão, timeline semântica, transcriç�
 
 # Session workflow
 
+Playbook dedicado: `.cursor/playbooks/playbook-session-debug.md`
+Agent: `session-engineer` | Rule: `40-session-timeline`
+
 ## Artefatos de sessão
 
 ```

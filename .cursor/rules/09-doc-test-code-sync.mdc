@@ -1,0 +1,64 @@
+---
+description: "Sincronismo obrigatório entre documentação, testes e implementação."
+globs:
+  - "docs/**/*.md"
+  - "server/**/*.ts"
+  - "ui/**/*.{ts,tsx}"
+  - "server/test/**/*"
+alwaysApply: true
+---
+
+# Documentação → testes → implementação
+
+Toda feature, correção, refatoração ou ajuste de teste deve manter uma cadeia rastreável:
+
+```text
+requisito documentado → cenário de teste → implementação → validação executada
+```
+
+## Fontes oficiais
+
+1. Arquitetura e comandos: [AGENTS.md](../../AGENTS.md)
+2. Critérios de MVP: [docs/MVP_VALIDATION.md](../../docs/MVP_VALIDATION.md)
+3. Git Flow: [docs/GITFLOW.md](../../docs/GITFLOW.md)
+4. Testes de aceitação: `server/test/unit/acceptance.test.ts` (AC-001 a AC-040)
+
+## Gate antes de editar código
+
+Antes de alterar comportamento:
+
+1. Localizar a documentação que define o comportamento esperado.
+2. Verificar se o teste existente valida a regra documentada, não apenas a implementação atual.
+3. Se o teste estiver desalinhado, corrigir ou criar o teste com base na doc antes de mexer no código.
+4. Se a doc estiver ausente ou ambígua, documentar a lacuna ou perguntar uma decisão objetiva.
+5. Registrar quais docs, testes e módulos reutilizáveis serão afetados.
+
+## Tipo de mudança
+
+### Bugfix
+
+- Provar a divergência entre docs/testes/código.
+- Criar ou ajustar teste de regressão na camada adequada.
+- Corrigir a menor causa raiz sem enfraquecer teste.
+- Rodar `npm test` e `npm run test:e2e` conforme impacto.
+
+### Feature nova
+
+- Atualizar AGENTS.md ou MVP_VALIDATION.md quando alterar comportamento visível.
+- Planejar testes por camada antes da implementação.
+- Implementar seguindo a arquitetura do repo e reuso existente.
+
+### Refatoração
+
+- Não mudar comportamento salvo se declarado.
+- Validar fluxo completo: route → SessionManager → EventStore → Timeline → Export.
+- Confirmar que testes existentes continuam aderentes.
+
+## Saída obrigatória
+
+Ao finalizar, reportar:
+
+- Docs consultadas/atualizadas.
+- Testes criados/alterados e qual regra validam.
+- Implementação alterada.
+- Comandos executados e resultado.

@@ -1,0 +1,68 @@
+---
+description: "Sessão, timeline semântica, correlação e export REVIEW.md"
+globs:
+  - server/src/session/**/*
+  - server/src/timeline/**/*
+  - server/src/export/**/*
+  - server/src/persistence/**/*
+alwaysApply: false
+---
+
+# Sessão e Timeline
+
+## Artefatos por sessão
+
+```
+sessions/<sessionId>/
+├── session.json
+├── REVIEW.md
+├── review.json
+├── evidence/
+└── raw/
+    ├── events.jsonl
+    ├── transcript.jsonl
+    └── audio.wav
+```
+
+`sessions/` é gitignored — nunca commitar.
+
+## Pipeline de compilação
+
+```text
+events.jsonl + transcript.jsonl
+  → TimelineReducer
+  → CorrelationEngine (fala ↔ tela/elemento)
+  → SessionCompiler
+  → REVIEW.md + review.json
+```
+
+## Componentes-chave
+
+| Componente | Responsabilidade |
+|------------|------------------|
+| `SessionManager` | start/pause/resume/stop/finalize |
+| `EventStore` | append JSONL de eventos |
+| `TimelineReducer` | eventos → timeline semântica |
+| `CorrelationEngine` | fala ↔ tela/elemento (`scope=SCREEN\|ELEMENT`) |
+| `SessionCompiler` | orquestra export |
+| `MarkdownExporter` | gera REVIEW.md |
+| `JsonExporter` | gera review.json |
+
+## Recompilar sessão existente
+
+```bash
+npm run compile -- <sessionId>
+```
+
+## Status RECOVERABLE
+
+Sessões em `RECORDING`/`PAUSED` interrompidas viram `RECOVERABLE`.
+Finalize via `POST /sessions/:id/finalize` ou CLI compile.
+
+## Testes prioritários
+
+- `SessionCompiler.test.ts`
+- `CorrelationEngine.test.ts`
+- `ScreenStateEngine.test.ts`
+- `SessionState.test.ts`
+- `acceptance.test.ts` (AC-001 a AC-040)

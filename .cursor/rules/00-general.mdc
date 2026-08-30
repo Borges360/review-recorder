@@ -1,0 +1,32 @@
+---
+description: "Regras gerais de qualidade e fluxo de trabalho."
+globs: []
+alwaysApply: true
+---
+
+# Qualidade e fluxo (geral)
+
+- Sempre começar por um mini-plano (objetivo, arquivos afetados, passos, validação) antes de editar.
+- Preferir mudanças pequenas e revisáveis (diffs curtos, commits lógicos quando aplicável).
+- Depois de mudanças relevantes: rodar linter/testes (ou explicar como validar).
+- Não inventar dependências/bibliotecas: primeiro buscar no repo se já existe padrão.
+- Aplicar `08-reuse-first`: reusar código/módulos/testes antes de criar novos.
+- Aplicar `09-doc-test-code-sync`: alinhar docs, testes e implementação antes de corrigir ou criar comportamento.
+- Quando houver ambiguidade funcional: perguntar (ou propor 2 opções com trade-offs).
+- Documentar decisões não óbvias em comentário curto ou em `docs/` quando o repo já usa.
+- Config Cursor: ver `.cursor/AUDITORIA-CONFIG.md` e playbooks em `.cursor/playbooks/`.
+- Fonte de arquitetura/produto: [AGENTS.md](../../AGENTS.md) e [docs/MVP_VALIDATION.md](../../docs/MVP_VALIDATION.md).
+
+## Idioma e encoding
+
+- **Português:** em texto que não é código (respostas, docs de usuário, commits quando em PT), usar português correto com acentuação.
+- **Inglês:** código, comentários em código, nomes de variáveis/funções e mensagens técnicas internas.
+- **UTF-8:** salvar arquivos em UTF-8; não usar entidades HTML para acentos em strings visíveis.
+
+## Sinais de "feito"
+
+- `npm test` OK (quando alterou server).
+- `npm run lint` OK (quando alterou TS).
+- `npm run test:e2e` OK (quando alterou browser/sessão).
+- Docs, testes e implementação coerentes com MVP/AC quando aplicável.
+- Sem `.env`, `sessions/` ou dados de runtime no diff.

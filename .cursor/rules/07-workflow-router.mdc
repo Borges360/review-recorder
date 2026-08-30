@@ -1,0 +1,50 @@
+---
+description: "Router operacional: escolhe fluxo por tipo de tarefa com validações mínimas."
+alwaysApply: true
+---
+
+# Router de workflow (review-recorder)
+
+Ao receber uma solicitação, classificar primeiro: `discovery`, `feature`, `bug`, `session-debug`, `qa`, `testes`, `voice`, `browser-hud`, `documentacao`, `refatoracao`.
+
+Usar o playbook dedicado em `@.cursor/playbooks/playbook-*.md` correspondente ao tipo.
+Índice completo: `@.cursor/playbooks/playbooks-operacionais-review-recorder.md`.
+
+## Passo 1 — Base obrigatória
+
+- Mini-plano: objetivo, arquivos prováveis, passos e validação.
+- Buscar antes de ler arquivos grandes.
+- Reutilizar código existente antes de criar estrutura nova.
+- Validar cadeia `docs → testes → implementação` pela regra `09-doc-test-code-sync`.
+- Não inferir fora de docs/código evidenciado.
+- Consultar [AGENTS.md](../../AGENTS.md) e [docs/MVP_VALIDATION.md](../../docs/MVP_VALIDATION.md) para comportamento esperado.
+- Aplicar `08-reuse-first` e explicitar reuso aplicado na saída.
+
+## Passo 2 — Seleção de rules por contexto
+
+- Padrões gerais do monorepo: `project-standards`
+- Backend Fastify/ESM: `10-server-fastify`
+- Control UI React: `20-ui-react`
+- Playwright/HUD/screenshots: `30-playwright-browser`
+- Sessão/timeline/export: `40-session-timeline`
+- Voz/transcrição: `50-voice-transcription`
+- Testes/QA: `60-qa-testing`
+
+## Passo 3 — Escalonar agents/skills só quando necessário
+
+- Arquitetura monorepo / discovery: `fullstack-architect` / `review-recorder-dev`
+- Sessão/timeline/export: `session-engineer` / `session-workflow`
+- Browser/HUD Playwright: `browser-automation` / `browser-playwright-hud`
+- Voz/transcrição: `voice-transcription`
+- QA/correção segura de testes: `qa-test-fixer` / `qa-correcao-testes-segura`, `qa-automation-testing`
+- Git Flow: `git-flow`
+
+## Passo 4 — Saída mínima por tipo
+
+- **Discovery:** documento acionável em `docs/discovery/` sem implementação.
+- **Feature/Bug:** código + testes alvo + docs impactadas.
+- **Session-debug:** diagnóstico da sessão + artefatos (`events.jsonl`, `REVIEW.md`) + correção se aplicável.
+- **Voice:** pipeline de transcrição validado com `FakeTranscriber` em testes.
+- **Browser-hud:** interação in-page + screenshots + eventos no JSONL.
+- **QA/Testes:** falha classificada, correção sem bypass, comandos executados.
+- **Refatoração:** mapa do fluxo completo + testes executados, sem mudança de comportamento.

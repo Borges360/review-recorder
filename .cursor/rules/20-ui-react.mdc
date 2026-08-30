@@ -1,0 +1,33 @@
+---
+description: "Padrões React para a Control UI"
+globs: ui/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# UI React — Control UI
+
+## Princípios
+
+- Componentes funcionais; hooks para lógica reutilizável.
+- API via `ui/src/api.ts` — não duplicar URLs hardcoded.
+- Backend em `http://127.0.0.1:3000` (proxy Vite se configurado).
+- Estilos em `styles.css`; manter UI simples e funcional.
+- Dev server: porta `5179` (`npm run dev:ui`).
+
+## Fluxos da UI
+
+| Tela/ação | Backend |
+|-----------|---------|
+| Criar sessão | `POST /sessions` |
+| Start/Pause/Resume/Stop | `POST /sessions/:id/{action}` |
+| Compilar sessão RECOVERABLE | `POST /sessions/:id/finalize` |
+| Status em tempo real | WebSocket |
+
+## Testes
+
+A Control UI não tem suite dedicada — validar manualmente ou via E2E do server quando o fluxo UI for crítico.
+
+## UX mínima
+
+- Estados de loading/erro visíveis para ações de sessão.
+- Não bloquear a UI durante operações longas (compilação, start do browser).

@@ -1,0 +1,37 @@
+---
+description: "Transcrição de voz, OpenAI Realtime e FakeTranscriber"
+globs:
+  - server/src/voice/**/*
+alwaysApply: false
+---
+
+# Voz e Transcrição
+
+## Modos
+
+| Modo | Uso |
+|------|-----|
+| OpenAI Realtime | Produção com `OPENAI_API_KEY` |
+| `FakeTranscriber` | Testes unitários e E2E |
+| Offline | Quando API indisponível (config) |
+
+## Pipeline
+
+1. Áudio capturado durante sessão → `raw/audio.wav`
+2. Segmentos transcritos → `raw/transcript.jsonl`
+3. `CorrelationEngine` associa fala a tela/elemento ativo
+
+## Escopos de correlação
+
+- `scope=SCREEN` — comentário sem clique prévio (tela inteira)
+- `scope=ELEMENT` — após interação com elemento (`associationConfidence`)
+
+## Testes
+
+- Sempre usar `FakeTranscriber` em testes automatizados.
+- Não commitar chaves de API; documentar em `.env.example`.
+- Validar pause/resume: áudio para, `wallElapsed` vs `activeElapsed`.
+
+## Evidência durante fala
+
+Screenshot com `pendingEvidence` + `speechSegmentId` deve aparecer na timeline exportada.
