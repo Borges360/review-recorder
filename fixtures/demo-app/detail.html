@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Detalhes do contrato</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Detalhes do contrato</h1>
+    <p>Contrato 829183</p>
+    <button type="button" aria-label="Editar contrato" data-testid="edit-contract">Editar contrato</button>
+    <button type="button" aria-label="Cancelar contrato">Cancelar contrato</button>
+    <section role="region" aria-label="Dados do cliente">
+      <h2>Dados do cliente</h2>
+      <p>Nome</p>
+      <p>João Silva</p>
+      <label for="doc-type">Tipo de documento</label>
+      <select id="doc-type" name="docType" aria-label="Tipo de documento">
+        <option value="cpf">CPF</option>
+        <option value="cnpj">CNPJ</option>
+      </select>
+      <label for="doc-number">Número</label>
+      <input id="doc-number" type="text" aria-label="Número do documento" />
+    </section>
+    <a href="index.html">Voltar</a>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

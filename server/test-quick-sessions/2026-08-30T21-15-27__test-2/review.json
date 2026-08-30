@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "id": "5db6257d-0621-403c-ac88-8f80c64f2db5",
+    "name": "Test 2",
+    "startedAt": "2026-08-30T21:15:27.797Z",
+    "stoppedAt": "2026-08-30T21:15:30.375Z",
+    "activeDurationSeconds": 3,
+    "wallDurationSeconds": 3
+  },
+  "timeline": [
+    {
+      "id": "tl-0",
+      "offset": "00:00.000",
+      "type": "session",
+      "label": "SESSION START",
+      "name": "Test 2"
+    }
+  ]
+}

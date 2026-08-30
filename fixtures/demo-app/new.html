@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Novo contrato</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Novo contrato</h1>
+    <form id="contract-form" onsubmit="return openWizard(event)">
+      <label for="client-name">Nome do cliente</label>
+      <input id="client-name" name="clientName" type="text" aria-label="Nome" />
+      <label for="cpf">CPF</label>
+      <input id="cpf" name="cpf" type="text" aria-label="CPF" placeholder="000.000.000-00" />
+      <label for="password">Senha de acesso</label>
+      <input id="password" name="password" type="password" aria-label="Senha de acesso" />
+      <button type="submit" data-testid="continue-btn">Continuar</button>
+    </form>
+    <a href="index.html">Voltar</a>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    function openWizard(e) {
+      e.preventDefault();
+      location.href = 'wizard.html?step=1';
+      return false;
+    }
+  </script>
+</body>
+</html>

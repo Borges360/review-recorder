@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Contratos — Listagem</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Listagem de contratos</h1>
+    <p>Contratos ativos: <span id="counter">0</span></p>
+    <nav>
+      <a href="index.html">Listagem</a>
+      <a href="new.html">Novo contrato</a>
+      <a href="detail.html">Detalhe</a>
+      <a href="settings.html">Configurações</a>
+      <a href="reports.html">Relatórios</a>
+    </nav>
+    <table role="table" aria-label="Contratos">
+      <thead><tr><th>ID</th><th>Cliente</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>829183</td><td>João Silva</td><td>Ativo</td></tr>
+        <tr><td>48291</td><td>Maria Souza</td><td>Pendente</td></tr>
+      </tbody>
+    </table>
+    <button data-testid="create-contract" type="button" onclick="location.href='new.html'">Gerar contrato</button>
+    <div id="toast" class="toast hidden" role="status">Notificação atualizada</div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

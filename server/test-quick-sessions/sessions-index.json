@@ -1,0 +1,34 @@
+{
+  "sessions": {
+    "066e5293-324a-4b97-ac81-a43a45b0e470": {
+      "id": "066e5293-324a-4b97-ac81-a43a45b0e470",
+      "name": "Test 1",
+      "slug": "test-1",
+      "initialUrl": null,
+      "description": null,
+      "status": "COMPLETED",
+      "createdAt": "2026-08-30T21:15:27.789Z",
+      "startedAt": "2026-08-30T21:15:27.793Z",
+      "stoppedAt": "2026-08-30T21:15:27.801Z",
+      "outputDir": "test-quick-sessions\\2026-08-30T21-15-27__test-1",
+      "wallElapsedMs": 8,
+      "activeElapsedMs": 6,
+      "diagnosticTrace": false
+    },
+    "5db6257d-0621-403c-ac88-8f80c64f2db5": {
+      "id": "5db6257d-0621-403c-ac88-8f80c64f2db5",
+      "name": "Test 2",
+      "slug": "test-2",
+      "initialUrl": null,
+      "description": null,
+      "status": "COMPLETED",
+      "createdAt": "2026-08-30T21:15:27.792Z",
+      "startedAt": "2026-08-30T21:15:27.797Z",
+      "stoppedAt": "2026-08-30T21:15:30.375Z",
+      "outputDir": "test-quick-sessions\\2026-08-30T21-15-27__test-2",
+      "wallElapsedMs": 2578,
+      "activeElapsedMs": 2576,
+      "diagnosticTrace": false
+    }
+  }
+}

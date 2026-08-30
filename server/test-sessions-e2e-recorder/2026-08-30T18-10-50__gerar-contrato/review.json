@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "id": "1a271540-80de-45fe-9afc-5c32feec876d",
+    "name": "Gerar contrato",
+    "startedAt": "2026-08-30T18:10:50.092Z",
+    "stoppedAt": "2026-08-30T18:10:50.675Z",
+    "activeDurationSeconds": 0,
+    "wallDurationSeconds": 1
+  },
+  "timeline": [
+    {
+      "id": "tl-0",
+      "offset": "00:00.004",
+      "type": "session",
+      "label": "SESSION START",
+      "name": "Gerar contrato"
+    },
+    {
+      "id": "tl-1",
+      "offset": "00:00.015",
+      "type": "screen",
+      "screen": {
+        "id": "state-c250196f",
+        "url": "http://127.0.0.1:57686/demo/",
+        "title": "Listagem de contratos"
+      }
+    },
+    {
+      "id": "tl-2",
+      "offset": "00:00.018",
+      "type": "action",
+      "action": "Click \"Gerar contrato\"",
+      "target": {
+        "tag": "button",
+        "role": "button",
+        "accessibleName": "Gerar contrato",
+        "text": "Gerar contrato",
+        "testId": "create-contract"
+      }
+    },
+    {
+      "id": "tl-3",
+      "offset": "00:00.029",
+      "type": "observation",
+      "scope": "ELEMENT",
+      "speech": {
+        "text": "Esse botão deveria ficar alinhado com o campo acima."
+      },
+      "screen": {
+        "id": "state-c250196f",
+        "url": "http://127.0.0.1:57686/demo/",
+        "title": "Listagem de contratos"
+      },
+      "candidateElement": {
+        "tag": "button",
+        "role": "button",
+        "accessibleName": "Gerar contrato",
+        "text": "Gerar contrato",
+        "testId": "create-contract"
+      },
+      "associationConfidence": "HIGH"
+    },
+    {
+      "id": "tl-4",
+      "offset": "00:00.242",
+      "type": "evidence",
+      "evidence": [
+        {
+          "type": "screenshot",
+          "path": "evidence/screenshot-001.png"
+        }
+      ],
+      "screen": {
+        "id": "state-c250196f",
+        "url": "http://127.0.0.1:57686/demo/",
+        "title": "Listagem de contratos"
+      }
+    },
+    {
+      "id": "tl-5",
+      "offset": "00:00.248",
+      "type": "screen",
+      "screen": {
+        "id": "state-f05d4594",
+        "url": "http://127.0.0.1:57686/demo/wizard.html?step=1",
+        "title": "Modal — Etapa 1 de 10"
+      }
+    },
+    {
+      "id": "tl-6",
+      "offset": "00:00.251",
+      "type": "pause",
+      "label": "PAUSE"
+    },
+    {
+      "id": "tl-7",
+      "offset": "00:00.251",
+      "type": "resume",
+      "label": "RESUME"
+    },
+    {
+      "id": "tl-8",
+      "offset": "00:00.266",
+      "type": "observation",
+      "scope": "ELEMENT",
+      "speech": {
+        "text": "Essa página tem informação demais."
+      },
+      "screen": {
+        "id": "state-f05d4594",
+        "url": "http://127.0.0.1:57686/demo/wizard.html?step=1",
+        "title": "Modal — Etapa 1 de 10"
+      },
+      "candidateElement": {
+        "tag": "button",
+        "role": "button",
+        "accessibleName": "Gerar contrato",
+        "text": "Gerar contrato",
+        "testId": "create-contract"
+      },
+      "associationConfidence": "HIGH"
+    }
+  ]
+}

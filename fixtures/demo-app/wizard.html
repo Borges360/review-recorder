@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wizard — Gerar contrato</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="overlay" class="overlay">
+    <div role="dialog" aria-modal="true" aria-labelledby="wizard-title" class="modal">
+      <h2 id="wizard-title">Modal — Dados financeiros</h2>
+      <p id="step-indicator" aria-current="step">Etapa 1 de 10</p>
+      <div id="step-content">
+        <label for="field-a">Campo etapa 1</label>
+        <input id="field-a" type="text" name="fieldA" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="prev-btn" disabled>Anterior</button>
+        <button type="button" id="next-btn" data-testid="wizard-next">Próximo</button>
+      </div>
+    </div>
+  </div>
+  <main>
+    <h1>Geração de contrato</h1>
+    <p>Wizard aberto sobre esta página (mesma URL para todas as etapas).</p>
+  </main>
+  <script src="wizard.js"></script>
+</body>
+</html>

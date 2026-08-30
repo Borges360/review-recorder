@@ -1,0 +1,28 @@
+---
+description: Padrões centrais do review-recorder — leia AGENTS.md
+alwaysApply: true
+---
+
+# review-recorder — padrões do projeto
+
+Consulte [AGENTS.md](../../AGENTS.md) como fonte de verdade (agnóstica de ferramenta).
+
+## Princípios
+
+- Escopo mínimo: não refatorar código não relacionado
+- Server usa ESM: imports com extensão `.js`
+- Nunca commitar `.env`, `sessions/`, `data/`
+- Código/comentários em inglês; docs de usuário em português
+- Rodar `npm test` após mudanças no server
+
+## Git Flow
+
+- Features → PR para `develop`
+- Hotfixes → PR para `main`
+- Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`)
+
+## Monorepo
+
+- `server/` — Fastify + Playwright backend
+- `ui/` — React Control UI (porta 5179)
+- Workspaces npm; lint na raiz

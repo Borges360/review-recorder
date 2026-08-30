@@ -1,0 +1,13 @@
+---
+description: Padrões React para a Control UI
+globs: ui/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# UI React
+
+- Componentes funcionais; hooks para lógica reutilizável
+- API via `ui/src/api.ts` — não duplicar URLs hardcoded
+- Backend em `http://127.0.0.1:3000` (configurável via proxy Vite se existir)
+- Estilos em `styles.css`; manter UI simples e funcional
+- Dev server: porta 5179 (`npm run dev:ui`)

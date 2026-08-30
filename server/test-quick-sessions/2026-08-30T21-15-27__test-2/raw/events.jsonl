@@ -1,0 +1,5 @@
+{"type":"PAGE_OPENED","payload":{"pageId":"page-1","url":"about:blank"},"timestamp":"2026-08-30T21:15:27.799Z","elapsedMs":2,"activeElapsedMs":0,"sessionId":"5db6257d-0621-403c-ac88-8f80c64f2db5","sequence":1}
+{"type":"TRANSCRIPTION_ONLINE","payload":{},"timestamp":"2026-08-30T21:15:27.799Z","elapsedMs":2,"activeElapsedMs":0,"sessionId":"5db6257d-0621-403c-ac88-8f80c64f2db5","sequence":2}
+{"type":"SESSION_STARTED","payload":{"name":"Test 2","initialUrl":null},"timestamp":"2026-08-30T21:15:27.799Z","elapsedMs":2,"activeElapsedMs":0,"sessionId":"5db6257d-0621-403c-ac88-8f80c64f2db5","sequence":3}
+{"type":"TRANSCRIPTION_OFFLINE","payload":{},"timestamp":"2026-08-30T21:15:30.374Z","elapsedMs":2577,"activeElapsedMs":2576,"sessionId":"5db6257d-0621-403c-ac88-8f80c64f2db5","sequence":4}
+{"type":"SESSION_STOPPED","payload":{},"timestamp":"2026-08-30T21:15:32.080Z","elapsedMs":4283,"activeElapsedMs":4282,"sessionId":"5db6257d-0621-403c-ac88-8f80c64f2db5","sequence":5}

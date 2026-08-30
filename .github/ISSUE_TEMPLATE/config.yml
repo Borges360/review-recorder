@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contributing guide
+    url: https://github.com/Borges360/review-recorder/blob/develop/CONTRIBUTING.md
+    about: Como contribuir e Git Flow
+  - name: AGENTS.md
+    url: https://github.com/Borges360/review-recorder/blob/develop/AGENTS.md
+    about: Guia para agentes de IA
