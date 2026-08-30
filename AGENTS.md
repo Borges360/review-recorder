@@ -56,7 +56,7 @@ sessions/         # artefatos gerados (gitignored)
 ### Tipos centrais
 
 - `SessionStatus`: CREATED → STARTING → RECORDING → … → COMPLETED | FAILED | RECOVERABLE
-- `TranscriptSegmentRecord`: fala correlacionada a tela/elemento
+- `TranscriptSegmentRecord`: fala correlacionada a tela/elemento; durante fala contínua, cada CLICK emite um bloco via `TranscriptAssembler.flushAtClick` (split em fronteira de palavra)
 - `ScreenStateRecord`: snapshot semântico de cada tela
 
 ## Regras de código

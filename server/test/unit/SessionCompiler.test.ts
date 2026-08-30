@@ -110,4 +110,90 @@ describe('SessionCompiler', () => {
     );
     expect(obsIdx).toBeLessThan(productionIdx);
   });
+
+  it('interleaves multiple speech blocks with clicks by startedAtMs', async () => {
+    appendEvent(EVENT_TYPES.SESSION_STARTED, 0, { name: 'Test' });
+    appendEvent(EVENT_TYPES.SCREEN_STATE_CHANGED, 1000, {
+      stateId: 'state-login',
+      title: 'Login',
+      url: 'http://localhost/login',
+    });
+    appendEvent(EVENT_TYPES.TRANSCRIPT_FINAL, 7000, {
+      segment: {
+        id: 'speech-1',
+        text: 'Nessa página o botão visualizar',
+        startedAtMs: 0,
+        endedAtMs: 7000,
+        screenStateId: 'state-login',
+        scope: 'SCREEN',
+        associationConfidence: 'LOW',
+        candidateElement: null,
+      },
+    });
+    appendEvent(EVENT_TYPES.CLICK, 7000, {
+      target: { accessibleName: 'E-mail', text: 'E-mail' },
+    });
+    appendEvent(EVENT_TYPES.TRANSCRIPT_FINAL, 13000, {
+      segment: {
+        id: 'speech-2',
+        text: 'esse campo está fora do padrão',
+        startedAtMs: 7000,
+        endedAtMs: 13000,
+        screenStateId: 'state-login',
+        scope: 'ELEMENT',
+        associationConfidence: 'HIGH',
+        candidateElement: { accessibleName: 'E-mail', role: 'textbox' },
+      },
+    });
+    appendEvent(EVENT_TYPES.CLICK, 13000, {
+      target: { accessibleName: 'Entrar', text: 'Entrar' },
+    });
+    appendEvent(EVENT_TYPES.SCREEN_STATE_CHANGED, 16000, {
+      stateId: 'state-dashboard',
+      title: 'Dashboard',
+      url: 'http://localhost/dashboard',
+    });
+    appendEvent(EVENT_TYPES.TRANSCRIPT_FINAL, 20000, {
+      segment: {
+        id: 'speech-3',
+        text: 'no dashboard tudo parece ok',
+        startedAtMs: 13000,
+        endedAtMs: 20000,
+        screenStateId: 'state-login',
+        scope: 'ELEMENT',
+        associationConfidence: 'HIGH',
+        candidateElement: { accessibleName: 'Entrar', role: 'button' },
+      },
+    });
+
+    const compiler = new SessionCompiler(sessionDir, repo);
+    const review = await compiler.compile(sessionId);
+
+    const observations = review.timeline.filter((e) => e.type === 'observation');
+    expect(observations).toHaveLength(3);
+    expect(observations[0]?.offset).toBe('00:00.000');
+    expect(observations[1]?.offset).toBe('00:07.000');
+    expect(observations[2]?.offset).toBe('00:13.000');
+
+    const obs0Idx = review.timeline.findIndex(
+      (e) => e.type === 'observation' && e.offset === '00:00.000',
+    );
+    const click1Idx = review.timeline.findIndex(
+      (e) => e.type === 'action' && (e.action as string)?.includes('E-mail'),
+    );
+    const obs1Idx = review.timeline.findIndex(
+      (e) => e.type === 'observation' && e.offset === '00:07.000',
+    );
+    const click2Idx = review.timeline.findIndex(
+      (e) => e.type === 'action' && (e.action as string)?.includes('Entrar'),
+    );
+    const obs2Idx = review.timeline.findIndex(
+      (e) => e.type === 'observation' && e.offset === '00:13.000',
+    );
+
+    expect(obs0Idx).toBeLessThan(click1Idx);
+    expect(click1Idx).toBeLessThan(obs1Idx);
+    expect(obs1Idx).toBeLessThan(click2Idx);
+    expect(click2Idx).toBeLessThan(obs2Idx);
+  });
 });

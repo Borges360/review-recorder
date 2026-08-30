@@ -12,7 +12,7 @@ Roteiro de sucesso do MVP conforme especificação. Cada passo indica como é va
 | 6 | Navegar 10 etapas do wizard | `?step=1` … `?step=10` na mesma URL |
 | 7 | Comentários por voz | OpenAI Realtime (`gpt-live-transcribe`) ou `USE_FAKE_TRANSCRIBER` |
 | 8 | Comentários sem clicar | `CorrelationEngine` → `scope=SCREEN` |
-| 9 | Comentários após clicar | `scope=ELEMENT` com `associationConfidence` |
+| 9 | Comentários após clicar | `scope=ELEMENT` com `associationConfidence`; fala contínua segmentada por CLICK (`TranscriptAssembler.flushAtClick`) |
 | 10 | Identificar problema visual | Botão Screenshot na Control UI ou HUD |
 | 11 | Screenshot durante fala | `pendingEvidence` + `speechSegmentId` |
 | 12 | Pause | `SESSION_PAUSED`, áudio para, trace chunk (diagnóstico) |

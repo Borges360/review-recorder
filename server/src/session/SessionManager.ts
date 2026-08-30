@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-import type { EventEnvelope, SessionRecord, EvidenceRecord, TimelineEntry, ReviewPackage } from '../shared/types.js';
+import type { EventEnvelope, SessionRecord, EvidenceRecord, TimelineEntry, ReviewPackage, TranscriptSegmentRecord } from '../shared/types.js';
 import { EVENT_TYPES } from '../shared/events.js';
 import { slugify } from '../shared/redaction.js';
 import type { AppConfig } from '../shared/types.js';
@@ -410,18 +410,16 @@ export class SessionManager {
         /* wait for completed */
       },
       onFinal: (text: string, itemId: string) => {
-        const { segment } = active.transcriptAssembler.finalize(
+        const { segment } = active.transcriptAssembler.finalizeFromFullText(
           text,
           itemId,
           active.clock.activeElapsedMs(),
           id,
         );
-        appendFileSync(
-          active.artifacts.getTranscriptPath(),
-          JSON.stringify({ ...segment, timestamp: new Date().toISOString() }) + '\n',
-        );
+        if (segment) {
+          this.emitTranscriptFinal(active, segment);
+        }
         active.partialTranscript = '';
-        this.emitEvent(active, EVENT_TYPES.TRANSCRIPT_FINAL, { segment });
         void this.broadcastHud(active);
       },
       onOffline: () => this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, {}),
@@ -447,11 +445,36 @@ export class SessionManager {
     });
   }
 
+  private emitTranscriptFinal(active: ActiveSession, segment: TranscriptSegmentRecord): void {
+    appendFileSync(
+      active.artifacts.getTranscriptPath(),
+      JSON.stringify({ ...segment, timestamp: new Date().toISOString() }) + '\n',
+    );
+    this.emitEvent(active, EVENT_TYPES.TRANSCRIPT_FINAL, { segment });
+  }
+
   private handleBrowserEvent(active: ActiveSession, evt: Omit<EventEnvelope, 'sequence'>): void {
     const payload = evt.payload as Record<string, unknown>;
     if (payload.pageId) active.correlation.updatePage(payload.pageId as string);
 
-    if ([EVENT_TYPES.CLICK, EVENT_TYPES.FORM_SUBMITTED].includes(evt.type as typeof EVENT_TYPES.CLICK)) {
+    if (evt.type === EVENT_TYPES.CLICK) {
+      const atMs = active.clock.activeElapsedMs();
+      const hadActiveSpeech = !!active.transcriptAssembler.getActive();
+      const actionId = active.correlation.recordAction((payload.target as never) ?? null, atMs);
+      payload.actionId = actionId;
+
+      if (hadActiveSpeech) {
+        const segment = active.transcriptAssembler.flushAtClick(
+          atMs,
+          active.record.id,
+          active.correlation.getSpeechContext(),
+        );
+        if (segment) {
+          this.emitTranscriptFinal(active, segment);
+          active.partialTranscript = active.transcriptAssembler.getActive()?.partialText ?? '';
+        }
+      }
+    } else if (evt.type === EVENT_TYPES.FORM_SUBMITTED) {
       const actionId = active.correlation.recordAction(
         (payload.target as never) ?? null,
         active.clock.activeElapsedMs(),
