@@ -30,3 +30,4 @@ alwaysApply: true
 - `npm run test:e2e` OK (quando alterou browser/sessão).
 - Docs, testes e implementação coerentes com MVP/AC quando aplicável.
 - Sem `.env`, `sessions/` ou dados de runtime no diff.
+- Serviços dev reiniciados pelo agente quando a mudança exige — ver `06-dev-runtime`.

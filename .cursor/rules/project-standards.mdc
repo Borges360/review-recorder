@@ -15,6 +15,7 @@ Router operacional: `07-workflow-router`. Índice: `.cursor/playbooks/playbooks-
 - Nunca commitar `.env`, `sessions/`, `data/`
 - Código/comentários em inglês; docs de usuário em português
 - Rodar `npm test` após mudanças no server; `npm run test:e2e` se tocar browser/sessão
+- Reiniciar serviços dev localmente quando necessário — regra `06-dev-runtime` (não delegar ao usuário)
 
 ## Git Flow
 

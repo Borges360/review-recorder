@@ -23,6 +23,7 @@ Usar o playbook dedicado em `@.cursor/playbooks/playbook-*.md` correspondente ao
 ## Passo 2 — Seleção de rules por contexto
 
 - Padrões gerais do monorepo: `project-standards`
+- Runtime local (reinício de dev server/UI): `06-dev-runtime`
 - Backend Fastify/ESM: `10-server-fastify`
 - Control UI React: `20-ui-react`
 - Playwright/HUD/screenshots: `30-playwright-browser`
