@@ -196,4 +196,51 @@ describe('SessionCompiler', () => {
     expect(obs1Idx).toBeLessThan(click2Idx);
     expect(click2Idx).toBeLessThan(obs2Idx);
   });
+
+  it('splits a single monologue by clicks recorded in events.jsonl', async () => {
+    appendEvent(EVENT_TYPES.SESSION_STARTED, 0, { name: 'Test' });
+    appendEvent(EVENT_TYPES.SCREEN_STATE_CHANGED, 1000, {
+      stateId: 'state-dashboard',
+      title: 'Dashboard',
+      url: 'http://localhost/dashboard',
+    });
+    appendEvent(EVENT_TYPES.CLICK, 5000, {
+      target: { accessibleName: 'Autores', text: 'Autores' },
+    });
+    appendEvent(EVENT_TYPES.SCREEN_STATE_CHANGED, 6000, {
+      stateId: 'state-authors',
+      title: 'Autores',
+      url: 'http://localhost/authors',
+    });
+    appendEvent(EVENT_TYPES.CLICK, 12000, {
+      target: { accessibleName: 'Buscar', text: 'Buscar' },
+    });
+    appendEvent(EVENT_TYPES.CLICK, 18000, {
+      target: { accessibleName: 'Visualizar', text: 'Visualizar' },
+    });
+    appendEvent(EVENT_TYPES.TRANSCRIPT_FINAL, 20000, {
+      segment: {
+        id: 'speech-1',
+        text: 'um dois três quatro cinco seis sete oito nove dez onze doze',
+        startedAtMs: 0,
+        endedAtMs: 20000,
+        screenStateId: 'state-dashboard',
+        scope: 'SCREEN',
+        associationConfidence: 'LOW',
+        candidateElement: null,
+      },
+    });
+
+    const compiler = new SessionCompiler(sessionDir, repo);
+    const review = await compiler.compile(sessionId);
+
+    const observations = review.timeline.filter((e) => e.type === 'observation');
+    expect(observations.length).toBeGreaterThan(1);
+    expect(observations.map((o) => (o.speech as { text?: string })?.text).join(' ')).toBe(
+      'um dois três quatro cinco seis sete oito nove dez onze doze',
+    );
+
+    const obsOffsets = observations.map((o) => o.offset);
+    expect(new Set(obsOffsets).size).toBeGreaterThan(1);
+  });
 });

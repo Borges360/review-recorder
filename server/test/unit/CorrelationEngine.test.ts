@@ -122,7 +122,8 @@ describe('TranscriptAssembler click flush', () => {
     assembler.appendPartial(' sobre o botão', 'item-1');
 
     const fullText = 'Primeiro trecho aqui sobre o botão';
-    const { segment } = assembler.finalizeFromFullText(fullText, 'item-1', 7000, 'sess-1');
+    const { segments } = assembler.finalizeFromFullText(fullText, 'item-1', 7000, 'sess-1');
+    const segment = segments[0];
 
     expect(segment?.text).toBe('aqui sobre o botão');
     expect(segment?.scope).toBe('ELEMENT');
@@ -145,7 +146,8 @@ describe('TranscriptAssembler click flush', () => {
     const seg2 = assembler.flushAtClick(6000, 'sess-1', corr.getSpeechContext());
 
     const fullText = 'Parte um aqui Parte dois fim Parte três final';
-    const { segment: seg3 } = assembler.finalizeFromFullText(fullText, 'item-1', 9000, 'sess-1');
+    const { segments } = assembler.finalizeFromFullText(fullText, 'item-1', 9000, 'sess-1');
+    const seg3 = segments[0];
 
     expect(seg1?.text).toBe('Parte um');
     expect(seg2?.text).toBe('aqui Parte dois');
@@ -153,5 +155,54 @@ describe('TranscriptAssembler click flush', () => {
 
     const allText = [seg1?.text, seg2?.text, seg3?.text].join(' ');
     expect(allText).toBe(fullText);
+  });
+
+  it('splits full text by click boundaries when partial transcript is unavailable', () => {
+    const corr = new CorrelationEngine();
+    const assembler = new TranscriptAssembler();
+    const emailTarget: ElementIdentity = {
+      tag: 'button',
+      role: 'button',
+      accessibleName: 'E-mail',
+      text: 'E-mail',
+      testId: null,
+      id: null,
+      name: null,
+      bounds: null,
+    };
+    const buscarTarget: ElementIdentity = {
+      tag: 'button',
+      role: 'button',
+      accessibleName: 'Buscar',
+      text: 'Buscar',
+      testId: null,
+      id: null,
+      name: null,
+      bounds: null,
+    };
+
+    corr.updateScreenState('state-1');
+    assembler.startSpeech('item-1', 0, corr.getSpeechContext());
+
+    corr.recordAction(emailTarget, 10000);
+    assembler.recordClickBoundary(10000, corr.getSpeechContext());
+    corr.recordAction(buscarTarget, 20000);
+    assembler.recordClickBoundary(20000, corr.getSpeechContext());
+
+    const fullText =
+      'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi';
+    const { segments } = assembler.finalizeFromFullText(fullText, 'item-1', 30000, 'sess-1');
+
+    expect(segments.length).toBe(3);
+    expect(segments.map((s) => s.text).join(' ')).toBe(fullText);
+    expect(segments[0]?.startedAtMs).toBe(0);
+    expect(segments[0]?.endedAtMs).toBe(10000);
+    expect(segments[1]?.startedAtMs).toBe(10000);
+    expect(segments[1]?.endedAtMs).toBe(20000);
+    expect(segments[2]?.startedAtMs).toBe(20000);
+    expect(segments[2]?.endedAtMs).toBe(30000);
+    expect(segments[1]?.scope).toBe('ELEMENT');
+    expect(segments[1]?.candidateElement?.accessibleName).toBe('E-mail');
+    expect(segments[2]?.candidateElement?.accessibleName).toBe('Buscar');
   });
 });

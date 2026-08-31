@@ -1,110 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, eventsWsUrl, audioWsUrl, formatTimer, type SessionRecord, type TimelineEntry } from './api';
+import { api, eventsWsUrl, audioWsUrl, formatTimer, type SessionRecord } from './api';
 import { AudioCapture } from './audio/AudioCapture';
-
-type View = 'home' | 'recording' | 'completed' | 'detail';
+import { SessionDetailPage } from './SessionDetailPage';
+import { navigate, sessionPath, useSessionRoute } from './routing';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function formatTimelineEntry(entry: TimelineEntry): string {
-  switch (entry.type) {
-    case 'session':
-      return `Início — ${entry.name as string}`;
-    case 'pause':
-      return 'Pausa';
-    case 'resume':
-      return 'Retomada';
-    case 'screen': {
-      const screen = entry.screen as { title?: string };
-      return `Tela — ${screen?.title ?? 'desconhecida'}`;
-    }
-    case 'action':
-      return entry.action as string;
-    case 'observation': {
-      const speech = entry.speech as { text?: string };
-      return `🎙 ${speech?.text ?? ''}`;
-    }
-    case 'evidence':
-      return 'Screenshot capturado';
-    default:
-      return entry.type;
-  }
-}
-
-function SessionDetailView({
-  session,
-  outputDir,
-  timeline,
-  reviewMarkdown,
-  onBack,
-}: {
-  session: SessionRecord;
-  outputDir: string | null;
-  timeline: TimelineEntry[];
-  reviewMarkdown: string | null;
-  onBack: () => void;
-}) {
-  const observations = timeline.filter((e) => e.type === 'observation');
-
-  return (
-    <div className="app">
-      <button className="btn btn-secondary btn-sm back-btn" onClick={onBack}>
-        ← Voltar
-      </button>
-      <h1>{session.name}</h1>
-      <p className="session-meta">
-        {session.stoppedAt ? `Finalizada em ${formatDate(session.stoppedAt)}` : formatDate(session.createdAt)}
-        {' · '}
-        {Math.round((session.activeElapsedMs ?? 0) / 1000)}s ativos
-      </p>
-
-      {outputDir && (
-        <p className="output-path">
-          Artefatos em: <code>{outputDir}</code>
-        </p>
-      )}
-
-      {observations.length > 0 && (
-        <div className="detail-section">
-          <h2>Observações por voz ({observations.length})</h2>
-          {observations.map((entry) => (
-            <div key={entry.id} className="timeline-entry observation">
-              <span className="timeline-offset">{entry.offset}</span>
-              <p>{formatTimelineEntry(entry)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {timeline.length > 0 && (
-        <div className="detail-section">
-          <h2>Timeline ({timeline.length} eventos)</h2>
-          <div className="timeline-list">
-            {timeline.map((entry) => (
-              <div key={entry.id} className={`timeline-entry ${entry.type}`}>
-                <span className="timeline-offset">{entry.offset}</span>
-                <span>{formatTimelineEntry(entry)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {reviewMarkdown && (
-        <div className="detail-section">
-          <h2>REVIEW.md</h2>
-          <pre className="review-preview">{reviewMarkdown}</pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function App() {
-  const [view, setView] = useState<View>('home');
+  const routeSessionId = useSessionRoute();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [initialUrl, setInitialUrl] = useState('http://127.0.0.1:3000/demo/');
@@ -117,11 +23,8 @@ export default function App() {
   const [alert, setAlert] = useState<string | null>(null);
   const [micLevel, setMicLevel] = useState(0);
   const [openaiConfigured, setOpenaiConfigured] = useState(true);
-  const [completedOutput, setCompletedOutput] = useState<string | null>(null);
-  const [reviewMarkdown, setReviewMarkdown] = useState<string | null>(null);
-  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
-  const [loadingSession, setLoadingSession] = useState(false);
   const [browserClosed, setBrowserClosed] = useState(false);
+  const [recording, setRecording] = useState(false);
 
   const audioRef = useRef<AudioCapture | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -157,18 +60,9 @@ export default function App() {
         sessionRecord ?? (await api.listSessions()).find((s) => s.id === sessionId);
       if (!stopped) return;
       setCurrent(stopped);
-      try {
-        const exp = await api.exportSession(stopped.id);
-        setCompletedOutput(exp.outputDir);
-        setReviewMarkdown(exp.reviewMd ?? null);
-        setTimeline(exp.reviewJson?.timeline ?? []);
-      } catch {
-        setCompletedOutput(stopped.outputDir);
-        setReviewMarkdown(null);
-        setTimeline([]);
-      }
-      setView('detail');
+      setRecording(false);
       void loadSessions();
+      navigate(sessionPath(sessionId));
     } catch (e) {
       stoppingRef.current = false;
       setAlert(String(e));
@@ -249,7 +143,7 @@ export default function App() {
       );
       const started = await api.startSession(session.id);
       setCurrent(started);
-      setView('recording');
+      setRecording(true);
       pausedRef.current = false;
       activeMsRef.current = 0;
       wallMsRef.current = 0;
@@ -332,35 +226,18 @@ export default function App() {
     }
   };
 
-  const handleViewSession = async (session: SessionRecord) => {
+  const handleViewSession = (session: SessionRecord) => {
     if (session.status !== 'COMPLETED' || !session.outputDir) return;
     setAlert(null);
-    setLoadingSession(true);
-    setCurrent(session);
-    try {
-      const exp = await api.exportSession(session.id);
-      setCompletedOutput(exp.outputDir);
-      setReviewMarkdown(exp.reviewMd ?? null);
-      setTimeline(exp.reviewJson?.timeline ?? (await api.getTimeline(session.id)).timeline);
-      setView('detail');
-    } catch (e) {
-      setAlert(String(e));
-    } finally {
-      setLoadingSession(false);
-    }
+    navigate(sessionPath(session.id));
   };
 
   const handleFinalizeRecoverable = async (session: SessionRecord) => {
     setAlert(null);
     try {
       const finalized = await api.finalizeSession(session.id);
-      setCurrent(finalized);
-      const exp = await api.exportSession(finalized.id);
-      setCompletedOutput(exp.outputDir);
-      setReviewMarkdown(exp.reviewMd ?? null);
-      setTimeline(exp.reviewJson?.timeline ?? []);
-      setView('detail');
       void loadSessions();
+      navigate(sessionPath(finalized.id));
     } catch (e) {
       setAlert(String(e));
     }
@@ -369,7 +246,11 @@ export default function App() {
   const recoverableSessions = sessions.filter((s) => s.status === 'RECOVERABLE');
   const recentSessions = sessions.filter((s) => s.status !== 'RECOVERABLE');
 
-  if (view === 'recording' && current) {
+  if (routeSessionId && !recording) {
+    return <SessionDetailPage sessionId={routeSessionId} />;
+  }
+
+  if (recording && current) {
     const isPaused = current.status === 'PAUSED' || pausedRef.current;
     return (
       <div className="app">
@@ -437,23 +318,6 @@ export default function App() {
     );
   }
 
-  if ((view === 'completed' || view === 'detail') && current) {
-    return (
-      <SessionDetailView
-        session={current}
-        outputDir={completedOutput ?? current.outputDir}
-        timeline={timeline}
-        reviewMarkdown={reviewMarkdown}
-        onBack={() => {
-          setView('home');
-          setCurrent(null);
-          setTimeline([]);
-          setReviewMarkdown(null);
-        }}
-      />
-    );
-  }
-
   return (
     <div className="app">
       <h1>UI Review</h1>
@@ -483,9 +347,8 @@ export default function App() {
       />
 
       {alert && <div className="alert">{alert}</div>}
-      {loadingSession && <div className="alert">Carregando sessão...</div>}
 
-      <button className="btn btn-primary" onClick={() => void handleStart()} disabled={!name.trim() || loadingSession}>
+      <button className="btn btn-primary" onClick={() => void handleStart()} disabled={!name.trim()}>
         Iniciar sessão
       </button>
 
@@ -515,13 +378,13 @@ export default function App() {
             <div
               key={s.id}
               className={`session-item${s.status === 'COMPLETED' ? ' clickable' : ''}`}
-              onClick={() => s.status === 'COMPLETED' && void handleViewSession(s)}
+              onClick={() => s.status === 'COMPLETED' && handleViewSession(s)}
               role={s.status === 'COMPLETED' ? 'button' : undefined}
               tabIndex={s.status === 'COMPLETED' ? 0 : undefined}
               onKeyDown={(e) => {
                 if (s.status === 'COMPLETED' && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault();
-                  void handleViewSession(s);
+                  handleViewSession(s);
                 }
               }}
             >

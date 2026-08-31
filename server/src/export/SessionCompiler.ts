@@ -7,16 +7,25 @@ import type { SessionRepository } from '../persistence/SessionRepository.js';
 import { JsonExporter } from './JsonExporter.js';
 import { MarkdownExporter } from './MarkdownExporter.js';
 import { TimelineReducer } from '../timeline/TimelineReducer.js';
-
-interface ScreenSnapshot {
-  id: string;
-  url: string;
-  title: string;
-}
+import {
+  splitTranscriptByClickTimes,
+  type ClickSplitPoint,
+  type ScreenSnapshot,
+} from '../timeline/SpeechClickSplitter.js';
+import type { ElementIdentity } from '../shared/types.js';
 
 interface StagedEntry {
   atMs: number;
   entry: Omit<TimelineEntry, 'id'>;
+}
+
+function screenAtTime(timeline: { atMs: number; screen: ScreenSnapshot }[], atMs: number): ScreenSnapshot {
+  let current = timeline[0]?.screen ?? { id: '', url: '', title: '' };
+  for (const entry of timeline) {
+    if (entry.atMs <= atMs) current = entry.screen;
+    else break;
+  }
+  return current;
 }
 
 export class SessionCompiler {
@@ -35,6 +44,8 @@ export class SessionCompiler {
     let lastScreenUrl = '';
     let lastScreenId = '';
     const screenStates = new Map<string, ScreenSnapshot>();
+    const screenTimeline: { atMs: number; screen: ScreenSnapshot }[] = [];
+    const clickPoints: ClickSplitPoint[] = [];
     let inputBuffer: { label: string; startMs: number; endMs: number } | null = null;
 
     const stream = createReadStream(eventsPath, { encoding: 'utf8' });
@@ -80,6 +91,7 @@ export class SessionCompiler {
           lastScreenId = (payload.stateId as string) ?? lastScreenId;
           const screen = { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle };
           if (lastScreenId) screenStates.set(lastScreenId, screen);
+          screenTimeline.push({ atMs: event.activeElapsedMs, screen });
           staged.push({
             atMs: event.activeElapsedMs,
             entry: { offset, type: 'screen', screen },
@@ -92,6 +104,12 @@ export class SessionCompiler {
           inputBuffer = null;
           const target = payload.target as Record<string, unknown> | null;
           const name = target?.accessibleName ?? target?.text ?? 'elemento';
+          const screen = { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle };
+          clickPoints.push({
+            atMs: event.activeElapsedMs,
+            target: (target as ElementIdentity | null) ?? null,
+            screen,
+          });
           staged.push({
             atMs: event.activeElapsedMs,
             entry: {
@@ -135,25 +153,34 @@ export class SessionCompiler {
             inputBuffer = null;
           }
           const segment = payload.segment as Record<string, unknown>;
-          const speechAtMs =
+          const speechText = (segment.text as string) ?? '';
+          const speechStartMs =
             typeof segment.startedAtMs === 'number' ? segment.startedAtMs : event.activeElapsedMs;
-          const speechOffset = formatOffset(speechAtMs);
-          const screenStateId = segment.screenStateId as string | null | undefined;
-          const screen =
-            (screenStateId && screenStates.get(screenStateId)) ??
-            ({ id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle } as ScreenSnapshot);
-          staged.push({
-            atMs: speechAtMs,
-            entry: {
-              offset: speechOffset,
-              type: 'observation',
-              scope: segment.scope,
-              speech: { text: segment.text },
-              screen,
-              candidateElement: segment.candidateElement,
-              associationConfidence: segment.associationConfidence,
-            },
-          });
+          const speechEndMs =
+            typeof segment.endedAtMs === 'number' ? segment.endedAtMs : event.activeElapsedMs;
+          const startScreen = screenAtTime(screenTimeline, speechStartMs);
+          const chunks = splitTranscriptByClickTimes(
+            speechText,
+            speechStartMs,
+            speechEndMs,
+            clickPoints,
+            startScreen,
+          );
+
+          for (const chunk of chunks) {
+            staged.push({
+              atMs: chunk.startedAtMs,
+              entry: {
+                offset: formatOffset(chunk.startedAtMs),
+                type: 'observation',
+                scope: chunk.scope,
+                speech: { text: chunk.text },
+                screen: chunk.screen,
+                candidateElement: chunk.candidateElement,
+                associationConfidence: chunk.associationConfidence,
+              },
+            });
+          }
           break;
         }
 

@@ -332,6 +332,30 @@ input:focus {
   min-width: 72px;
 }
 
+.review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.review-header h2 {
+  margin: 0;
+}
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.copy-feedback {
+  font-size: 0.8rem;
+  color: #34a853;
+}
+
 .review-preview {
   background: #1a1d24;
   border: 1px solid #3c4043;

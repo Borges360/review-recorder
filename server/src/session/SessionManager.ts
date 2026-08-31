@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-import type { EventEnvelope, SessionRecord, EvidenceRecord, TimelineEntry, ReviewPackage, TranscriptSegmentRecord } from '../shared/types.js';
+import type { EventEnvelope, SessionRecord, EvidenceRecord, TimelineEntry, ReviewPackage, TranscriptSegmentRecord, ElementIdentity } from '../shared/types.js';
 import { EVENT_TYPES } from '../shared/events.js';
 import { slugify } from '../shared/redaction.js';
 import type { AppConfig } from '../shared/types.js';
@@ -16,6 +16,7 @@ import { BrowserManager } from '../browser/BrowserManager.js';
 import { AudioStream, OpenAITranscriber } from '../voice/OpenAITranscriber.js';
 import { FakeTranscriber } from '../voice/FakeTranscriber.js';
 import { CorrelationEngine, TranscriptAssembler, newId } from '../timeline/CorrelationEngine.js';
+import type { ClickSplitPoint, ScreenSnapshot } from '../timeline/SpeechClickSplitter.js';
 import { SessionCompiler } from '../export/SessionCompiler.js';
 import { transcribeOffline } from '../voice/OfflineTranscriber.js';
 
@@ -105,6 +106,9 @@ export class SessionManager {
       evidenceCounter: 0,
       screenStateIds: new Map(),
       evidenceSpeechLinks: new Map(),
+      speechStartMs: null,
+      lastScreenSnapshot: { id: '', url: '', title: '' },
+      speechClickMarkers: [],
       browser: null,
       audio: null,
       transcriber: null,
@@ -195,6 +199,9 @@ export class SessionManager {
   handleAudio(id: string, pcm: Buffer): void {
     const active = this.activeSessions.get(id);
     if (!active || !active.forwardingAudio) return;
+    if (active.speechStartMs === null) {
+      active.speechStartMs = active.clock.activeElapsedMs();
+    }
     active.audio?.write(pcm);
     active.transcriber?.appendAudio(pcm);
   }
@@ -361,6 +368,11 @@ export class SessionManager {
         const stateId = newId('state');
         active.correlation.updateScreenState(stateId);
         active.screenStateIds.set(state.fingerprint, stateId);
+        active.lastScreenSnapshot = {
+          id: stateId,
+          url: state.url,
+          title: state.title,
+        };
         const type = state.isNew ? EVENT_TYPES.SCREEN_STATE_CHANGED : EVENT_TYPES.SCREEN_STATE_CREATED;
         this.emitEvent(active, type, { stateId, ...state });
       },
@@ -396,30 +408,47 @@ export class SessionManager {
         void this.broadcastHud(active);
       },
       onSpeechStarted: (itemId: string, audioStartMs: number) => {
-        const ctx = active.correlation.getSpeechContext();
-        const speech = active.transcriptAssembler.startSpeech(
-          itemId,
-          active.clock.activeElapsedMs(),
-          ctx,
-        );
-        const pendingEv = active.correlation.consumePendingEvidence(2000, active.clock.activeElapsedMs());
-        if (pendingEv) active.evidenceSpeechLinks.set(pendingEv, speech.id);
-        this.emitEvent(active, EVENT_TYPES.SPEECH_STARTED, { speechId: speech.id, itemId, audioStartMs, context: ctx });
+        if (active.speechStartMs === null) {
+          active.speechStartMs = active.clock.activeElapsedMs();
+        }
+        if (!active.transcriptAssembler.getActive()) {
+          const ctx = active.correlation.getSpeechContext();
+          const speech = active.transcriptAssembler.startSpeech(
+            itemId,
+            active.clock.activeElapsedMs(),
+            ctx,
+          );
+          const pendingEv = active.correlation.consumePendingEvidence(2000, active.clock.activeElapsedMs());
+          if (pendingEv) active.evidenceSpeechLinks.set(pendingEv, speech.id);
+          this.emitEvent(active, EVENT_TYPES.SPEECH_STARTED, {
+            speechId: speech.id,
+            itemId,
+            audioStartMs,
+            context: ctx,
+          });
+        }
       },
       onSpeechStopped: (_itemId: string) => {
         /* wait for completed */
       },
       onFinal: (text: string, itemId: string) => {
-        const { segment } = active.transcriptAssembler.finalizeFromFullText(
+        const endedAtMs = active.clock.activeElapsedMs();
+        const { segments } = active.transcriptAssembler.finalizeFromFullText(
           text,
           itemId,
-          active.clock.activeElapsedMs(),
+          endedAtMs,
           id,
+          {
+            clickPoints: active.speechClickMarkers,
+            speechStartMs: active.speechStartMs ?? 0,
+            startScreen: active.lastScreenSnapshot,
+          },
         );
-        if (segment) {
+        for (const segment of segments) {
           this.emitTranscriptFinal(active, segment);
         }
         active.partialTranscript = '';
+        active.speechClickMarkers = [];
         void this.broadcastHud(active);
       },
       onOffline: () => this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, {}),
@@ -459,19 +488,28 @@ export class SessionManager {
 
     if (evt.type === EVENT_TYPES.CLICK) {
       const atMs = active.clock.activeElapsedMs();
-      const hadActiveSpeech = !!active.transcriptAssembler.getActive();
       const actionId = active.correlation.recordAction((payload.target as never) ?? null, atMs);
       payload.actionId = actionId;
 
+      active.speechClickMarkers.push({
+        atMs,
+        target: (payload.target as ElementIdentity | null) ?? null,
+        screen: { ...active.lastScreenSnapshot },
+      });
+
+      const hadActiveSpeech = !!active.transcriptAssembler.getActive();
       if (hadActiveSpeech) {
+        const postClickContext = active.correlation.getSpeechContext();
         const segment = active.transcriptAssembler.flushAtClick(
           atMs,
           active.record.id,
-          active.correlation.getSpeechContext(),
+          postClickContext,
         );
         if (segment) {
           this.emitTranscriptFinal(active, segment);
           active.partialTranscript = active.transcriptAssembler.getActive()?.partialText ?? '';
+        } else {
+          active.transcriptAssembler.recordClickBoundary(atMs, postClickContext);
         }
       }
     } else if (evt.type === EVENT_TYPES.FORM_SUBMITTED) {
@@ -550,5 +588,8 @@ interface ActiveSession {
   audio: AudioStream | null;
   transcriber: OpenAITranscriber | FakeTranscriber | null;
   forwardingAudio: boolean;
+  speechStartMs: number | null;
+  lastScreenSnapshot: ScreenSnapshot;
+  speechClickMarkers: ClickSplitPoint[];
   stopping?: boolean;
 }

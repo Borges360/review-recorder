@@ -5,6 +5,11 @@ import type {
   ObservationScope,
   TranscriptSegmentRecord,
 } from '../shared/types.js';
+import {
+  splitTranscriptByClickTimes,
+  type ClickSplitPoint,
+  type ScreenSnapshot,
+} from './SpeechClickSplitter.js';
 
 export interface SpeechContext {
   screenStateId: string | null;
@@ -18,8 +23,70 @@ export interface ActiveSpeech {
   id: string;
   itemId: string;
   startedAtMs: number;
+  /** Context captured when this speech segment started (before any click in this span). */
+  startContext: SpeechContext;
   context: SpeechContext;
   partialText: string;
+}
+
+export interface ClickBoundary {
+  atMs: number;
+  context: SpeechContext;
+}
+
+interface SpeechInterval {
+  startMs: number;
+  endMs: number;
+  context: SpeechContext;
+}
+
+/** Snap a character index to the nearest word boundary (space). */
+export function snapToWordBoundary(text: string, pos: number): number {
+  if (pos <= 0) return 0;
+  if (pos >= text.length) return text.length;
+  const before = text.lastIndexOf(' ', pos);
+  const after = text.indexOf(' ', pos);
+  if (before === -1 && after === -1) return pos;
+  if (before === -1) return after;
+  if (after === -1) return before;
+  return pos - before <= after - pos ? before : after;
+}
+
+/** Split transcript text across time intervals, snapping cuts to word boundaries. */
+export function splitTextByTimeIntervals(
+  text: string,
+  intervals: SpeechInterval[],
+): string[] {
+  const normalized = text.trim().replace(/\s+/g, ' ');
+  if (!normalized || intervals.length === 0) return normalized ? [normalized] : [];
+
+  const totalMs = intervals[intervals.length - 1]!.endMs - intervals[0]!.startMs;
+  if (totalMs <= 0) return [normalized];
+
+  const len = normalized.length;
+  const cuts: number[] = [0];
+  const baseMs = intervals[0]!.startMs;
+
+  for (let i = 0; i < intervals.length - 1; i++) {
+    const endMs = intervals[i]!.endMs;
+    const ratio = (endMs - baseMs) / totalMs;
+    let pos = Math.round(ratio * len);
+    pos = snapToWordBoundary(normalized, pos);
+    if (pos <= cuts[cuts.length - 1]!) {
+      pos = normalized.indexOf(' ', cuts[cuts.length - 1]! + 1);
+      if (pos === -1) pos = len;
+    }
+    cuts.push(Math.min(pos, len));
+  }
+  cuts.push(len);
+
+  const parts: string[] = [];
+  for (let i = 0; i < intervals.length; i++) {
+    const chunk = normalized.slice(cuts[i], cuts[i + 1]).trim();
+    if (chunk) parts.push(chunk);
+    else parts.push('');
+  }
+  return parts;
 }
 
 /** Split text at word boundaries; keeps the last token if still in progress (no trailing space). */
@@ -39,20 +106,30 @@ export function splitAtWordBoundary(text: string): { complete: string; remainder
   };
 }
 
+export interface FinalizeSpeechOptions {
+  clickPoints?: ClickSplitPoint[];
+  speechStartMs?: number;
+  startScreen?: ScreenSnapshot;
+}
+
 export class TranscriptAssembler {
   private active: ActiveSpeech | null = null;
   private segmentCounter = 0;
   /** Prefix already persisted via click-triggered flushes (used to reconcile onFinal). */
   private emittedText = '';
+  /** Click timestamps recorded when partial text was unavailable (OpenAI sends deltas late). */
+  private clickBoundaries: ClickBoundary[] = [];
 
   startSpeech(itemId: string, startedAtMs: number, context: SpeechContext): ActiveSpeech {
     this.active = {
       id: `speech-${++this.segmentCounter}`,
       itemId,
       startedAtMs,
+      startContext: { ...context },
       context: { ...context },
       partialText: '',
     };
+    this.clickBoundaries = [];
     return this.active;
   }
 
@@ -128,11 +205,18 @@ export class TranscriptAssembler {
       id: `speech-${++this.segmentCounter}`,
       itemId,
       startedAtMs: endedAtMs,
+      startContext: { ...newContext },
       context: { ...newContext },
       partialText: remainder,
     };
 
     return segment;
+  }
+
+  /** Record a click during active speech when partial transcript is not yet available. */
+  recordClickBoundary(atMs: number, postClickContext: SpeechContext): void {
+    if (!this.active) return;
+    this.clickBoundaries.push({ atMs, context: { ...postClickContext } });
   }
 
   /** Finalize only the portion of fullText not already emitted via click flushes. */
@@ -141,17 +225,148 @@ export class TranscriptAssembler {
     itemId: string,
     endedAtMs: number,
     sessionId: string,
-  ): { segment: TranscriptSegmentRecord | null; wasActive: ActiveSpeech | null } {
-    const remainder = this.extractRemainder(fullText);
+    external?: FinalizeSpeechOptions,
+  ): { segments: TranscriptSegmentRecord[]; wasActive: ActiveSpeech | null } {
     const wasActive = this.active;
-    this.emittedText = '';
+    const speech = this.active?.itemId === itemId ? this.active : this.active;
 
-    if (!remainder.trim()) {
-      if (this.active?.itemId === itemId) this.active = null;
-      return { segment: null, wasActive };
+    let textToSplit = fullText.trim().replace(/\s+/g, ' ');
+    if (!textToSplit) {
+      this.active = null;
+      this.emittedText = '';
+      this.clickBoundaries = [];
+      return { segments: [], wasActive };
     }
 
-    return this.finalize(remainder, itemId, endedAtMs, sessionId);
+    if (this.emittedText) {
+      textToSplit = this.extractRemainder(fullText);
+      this.clickBoundaries = [];
+    }
+
+    if (this.clickBoundaries.length > 0 && textToSplit && speech) {
+      const segments = this.buildSegmentsFromBoundaries(
+        textToSplit,
+        speech,
+        endedAtMs,
+        sessionId,
+        itemId,
+      );
+      this.clickBoundaries = [];
+      this.emittedText = '';
+      this.active = null;
+      return { segments, wasActive };
+    }
+
+    const clickPoints = external?.clickPoints ?? [];
+    const speechStartMs = speech?.startedAtMs ?? external?.speechStartMs ?? 0;
+    const startScreen = external?.startScreen ?? {
+      id: speech?.startContext.screenStateId ?? '',
+      url: '',
+      title: '',
+    };
+
+    if (clickPoints.length > 0) {
+      const chunks = splitTranscriptByClickTimes(
+        textToSplit,
+        speechStartMs,
+        endedAtMs,
+        clickPoints,
+        startScreen,
+      );
+      const segments = chunks.map((chunk) => this.chunkToSegment(chunk, sessionId, itemId));
+      this.emittedText = '';
+      this.clickBoundaries = [];
+      this.active = null;
+      return { segments, wasActive };
+    }
+
+    this.emittedText = '';
+    if (!speech) {
+      return { segments: [], wasActive: null };
+    }
+
+    const { segment } = this.finalize(textToSplit, itemId, endedAtMs, sessionId);
+    return { segments: [segment], wasActive };
+  }
+
+  private chunkToSegment(
+    chunk: {
+      startedAtMs: number;
+      endedAtMs: number;
+      text: string;
+      screen: ScreenSnapshot;
+      scope: ObservationScope;
+      candidateElement: ElementIdentity | null;
+      associationConfidence: AssociationConfidence;
+    },
+    sessionId: string,
+    itemId: string,
+  ): TranscriptSegmentRecord {
+    return {
+      id: `speech-${++this.segmentCounter}`,
+      sessionId,
+      itemId,
+      text: chunk.text,
+      startedAtMs: chunk.startedAtMs,
+      endedAtMs: chunk.endedAtMs,
+      screenStateId: chunk.screen.id || null,
+      pageId: null,
+      lastActionId: null,
+      scope: chunk.scope,
+      candidateElement: chunk.candidateElement,
+      associationConfidence: chunk.associationConfidence,
+    };
+  }
+
+  private buildSegmentsFromBoundaries(
+    text: string,
+    speech: ActiveSpeech,
+    endedAtMs: number,
+    sessionId: string,
+    itemId: string,
+  ): TranscriptSegmentRecord[] {
+    const boundaries = [...this.clickBoundaries].sort((a, b) => a.atMs - b.atMs);
+    const intervals: SpeechInterval[] = [
+      {
+        startMs: speech.startedAtMs,
+        endMs: boundaries[0]!.atMs,
+        context: speech.startContext,
+      },
+    ];
+    for (let i = 0; i < boundaries.length - 1; i++) {
+      intervals.push({
+        startMs: boundaries[i]!.atMs,
+        endMs: boundaries[i + 1]!.atMs,
+        context: boundaries[i]!.context,
+      });
+    }
+    intervals.push({
+      startMs: boundaries[boundaries.length - 1]!.atMs,
+      endMs: endedAtMs,
+      context: boundaries[boundaries.length - 1]!.context,
+    });
+
+    const textParts = splitTextByTimeIntervals(text, intervals);
+    const segments: TranscriptSegmentRecord[] = [];
+
+    for (let i = 0; i < intervals.length; i++) {
+      const chunk = textParts[i]?.trim();
+      if (!chunk) continue;
+      segments.push(
+        this.buildSegment(
+          chunk,
+          intervals[i]!.startMs,
+          intervals[i]!.endMs,
+          intervals[i]!.context,
+          sessionId,
+          itemId,
+          `speech-${++this.segmentCounter}`,
+          intervals[i]!.startMs,
+        ),
+      );
+    }
+
+    return segments;
   }
 
   getActive(): ActiveSpeech | null {
@@ -186,8 +401,9 @@ export class TranscriptAssembler {
     sessionId: string,
     itemId: string,
     speechId?: string,
+    scopeAtMs: number = endedAtMs,
   ): TranscriptSegmentRecord {
-    const { scope, confidence, candidate } = this.inferScope(ctx, endedAtMs);
+    const { scope, confidence, candidate } = this.inferScope(ctx, scopeAtMs);
     return {
       id: speechId ?? `speech-${++this.segmentCounter}`,
       sessionId,
