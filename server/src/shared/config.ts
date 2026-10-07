@@ -36,6 +36,23 @@ export function loadConfig(): AppConfig {
   const useFakeTranscriber = process.env.USE_FAKE_TRANSCRIBER === 'true';
   const mockBrowser = process.env.MOCK_BROWSER === 'true';
   const browserHeadless = process.env.BROWSER_HEADLESS === 'true';
+  const host = process.env.HOST ?? '127.0.0.1';
+  const apiToken = process.env.API_TOKEN?.trim() || null;
+  const databaseUrl = process.env.DATABASE_URL?.trim() || null;
+  const s3Endpoint = process.env.S3_ENDPOINT?.trim() || '';
+  const s3Bucket = process.env.S3_BUCKET?.trim() || '';
+  const s3AccessKey = process.env.S3_ACCESS_KEY?.trim() || '';
+  const s3SecretKey = process.env.S3_SECRET_KEY?.trim() || '';
+  const s3 =
+    s3Endpoint && s3Bucket && s3AccessKey && s3SecretKey
+      ? {
+          endpoint: s3Endpoint,
+          bucket: s3Bucket,
+          accessKey: s3AccessKey,
+          secretKey: s3SecretKey,
+          region: process.env.S3_REGION?.trim() || 'us-east-1',
+        }
+      : null;
 
   for (const dir of [sessionsDir, dataDir, browserProfileDir]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -43,6 +60,7 @@ export function loadConfig(): AppConfig {
 
   return {
     port,
+    host,
     uiOrigin,
     sessionsDir,
     dataDir,
@@ -52,5 +70,8 @@ export function loadConfig(): AppConfig {
     useFakeTranscriber,
     mockBrowser,
     browserHeadless,
+    apiToken,
+    databaseUrl,
+    s3,
   };
 }

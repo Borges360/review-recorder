@@ -246,7 +246,12 @@ input:focus {
   color: #fbbc04;
 }
 
-.mic-indicator {
+.alert-critical {
+  background: #3c1e1e;
+  border-color: #ea4335;
+  color: #f28b82;
+}
+
   display: flex;
   align-items: center;
   gap: 8px;

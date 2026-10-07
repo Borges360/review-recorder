@@ -38,6 +38,8 @@ export interface SessionRecord {
   wallElapsedMs: number;
   activeElapsedMs: number;
   diagnosticTrace: boolean;
+  /** Absent means the Playwright browser capture used by the local recorder. */
+  capture?: 'playwright' | 'extension';
 }
 
 export interface ScreenStateRecord {
@@ -120,8 +122,17 @@ export interface ReviewPackage {
   timeline: TimelineEntry[];
 }
 
+export interface S3Config {
+  endpoint: string;
+  bucket: string;
+  accessKey: string;
+  secretKey: string;
+  region: string;
+}
+
 export interface AppConfig {
   port: number;
+  host: string;
   uiOrigin: string;
   sessionsDir: string;
   dataDir: string;
@@ -131,4 +142,8 @@ export interface AppConfig {
   useFakeTranscriber: boolean;
   mockBrowser: boolean;
   browserHeadless: boolean;
+  /** When set, every route except health, demo and the history page requires this bearer token. */
+  apiToken: string | null;
+  databaseUrl: string | null;
+  s3: S3Config | null;
 }

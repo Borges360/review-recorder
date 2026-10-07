@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Histórico de revisões</title>
+    <style>
+      :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
+      body { margin: 0; background: #f4f1ea; color: #1c1915; }
+      header, main { max-width: 960px; margin: 0 auto; padding: 24px; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: end; }
+      h1 { margin: 0 0 8px; font-size: 28px; }
+      form, .card { background: #fff; border: 1px solid #e4dccb; border-radius: 12px; padding: 16px; }
+      label { display: block; font-size: 13px; margin-bottom: 8px; }
+      input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #d9d0c1; border-radius: 8px; }
+      button { background: #1c1915; color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+      button.ghost { background: transparent; color: #1c1915; border: 1px solid #d9d0c1; }
+      .row { display: flex; gap: 8px; align-items: end; }
+      .row label { flex: 1; }
+      ul { list-style: none; padding: 0; margin: 16px 0 0; }
+      li { padding: 12px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; gap: 12px; }
+      a { color: #6b3f12; }
+      .muted { color: #6d6458; font-size: 13px; }
+      .error { color: #8d1d1d; }
+      pre { white-space: pre-wrap; background: #faf7f2; padding: 12px; border-radius: 8px; }
+      img { max-width: 100%; border: 1px solid #e4dccb; border-radius: 8px; }
+      .entry { margin: 12px 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Revisões</h1>
+        <p class="muted">Histórico gravado pela extensão. O token fica só nesta aba.</p>
+      </div>
+    </header>
+    <main>
+      <form id="auth">
+        <div class="row">
+          <label>Token da API
+            <input id="token" type="password" autocomplete="off" placeholder="Bearer token" />
+          </label>
+          <button type="submit">Entrar</button>
+        </div>
+        <p id="auth-error" class="error"></p>
+      </form>
+      <section id="list" hidden>
+        <div class="card">
+          <button id="refresh" class="ghost" type="button">Atualizar</button>
+          <ul id="sessions"></ul>
+        </div>
+      </section>
+      <section id="detail" hidden>
+        <p><button id="back" class="ghost" type="button">Voltar</button></p>
+        <div class="card">
+          <h2 id="detail-title"></h2>
+          <p id="detail-meta" class="muted"></p>
+          <p>
+            <button id="download-md" type="button">Baixar REVIEW.md</button>
+            <button id="download-json" class="ghost" type="button">Baixar review.json</button>
+            <button id="finalize" class="ghost" type="button" hidden>Compilar e finalizar</button>
+          </p>
+          <div id="timeline"></div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const tokenInput = document.querySelector('#token');
+      const authError = document.querySelector('#auth-error');
+      const list = document.querySelector('#list');
+      const detail = document.querySelector('#detail');
+      const sessionsEl = document.querySelector('#sessions');
+      let currentId = null;
+      let currentExport = null;
+
+      function token() {
+        return sessionStorage.getItem('reviewToken') || '';
+      }
+
+      async function api(path, options = {}) {
+        const headers = new Headers(options.headers || {});
+        if (token()) headers.set('Authorization', 'Bearer ' + token());
+        const response = await fetch(path, { ...options, headers });
+        if (response.status === 401) throw new Error('Token recusado');
+        if (!response.ok) throw new Error(await response.text());
+        const type = response.headers.get('content-type') || '';
+        if (type.includes('application/json')) return response.json();
+        return response;
+      }
+
+      function showList() {
+        detail.hidden = true;
+        list.hidden = false;
+        document.querySelector('#auth').hidden = true;
+      }
+
+      async function loadSessions() {
+        const sessions = await api('/sessions?limit=100');
+        sessionsEl.innerHTML = '';
+        if (!sessions.length) {
+          sessionsEl.innerHTML = '<li class="muted">Nenhuma revisão ainda.</li>';
+          return;
+        }
+        for (const session of sessions) {
+          const item = document.createElement('li');
+          const link = document.createElement('a');
+          link.href = '#';
+          link.textContent = session.name;
+          link.addEventListener('click', (event) => {
+            event.preventDefault();
+            openSession(session.id);
+          });
+          const meta = document.createElement('span');
+          meta.className = 'muted';
+          meta.textContent = session.status + ' · ' + new Date(session.createdAt).toLocaleString('pt-BR');
+          item.append(link, meta);
+          sessionsEl.append(item);
+        }
+      }
+
+      function download(filename, content, type) {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }
+
+      async function openSession(id) {
+        currentId = id;
+        const session = await api('/sessions/' + id);
+        currentExport = null;
+        document.querySelector('#detail-title').textContent = session.name;
+        document.querySelector('#detail-meta').textContent =
+          session.status + ' · ativa ' + Math.round((session.activeElapsedMs || 0) / 1000) + 's';
+        document.querySelector('#finalize').hidden = session.status !== 'RECOVERABLE';
+        const timeline = document.querySelector('#timeline');
+        timeline.innerHTML = '';
+        list.hidden = true;
+        detail.hidden = false;
+        if (session.status !== 'COMPLETED' && session.status !== 'RECOVERABLE') {
+          timeline.innerHTML = '<p class="muted">A revisão ainda está em andamento.</p>';
+          return;
+        }
+        try {
+          currentExport = await api('/sessions/' + id + '/export');
+        } catch (error) {
+          timeline.innerHTML = '<p class="error">' + error.message + '</p>';
+          return;
+        }
+        const entries = currentExport.reviewJson?.timeline || [];
+        if (!entries.length) timeline.innerHTML = '<p class="muted">Sem timeline compilada.</p>';
+        for (const entry of entries) {
+          const block = document.createElement('div');
+          block.className = 'entry';
+          const title = document.createElement('strong');
+          title.textContent = (entry.offset || '') + ' ' + (entry.label || entry.action || entry.type);
+          block.append(title);
+          if (entry.speech?.text) {
+            const speech = document.createElement('p');
+            speech.textContent = entry.speech.text;
+            block.append(speech);
+          }
+          if (entry.candidateElement?.accessibleName) {
+            const element = document.createElement('p');
+            element.className = 'muted';
+            element.textContent = 'Elemento: ' + entry.candidateElement.accessibleName;
+            block.append(element);
+          }
+          timeline.append(block);
+        }
+        const shots = await api('/sessions/' + id + '/evidence');
+        for (const shot of shots) {
+          const image = document.createElement('img');
+          image.alt = 'Screenshot da revisão';
+          const response = await api('/sessions/' + id + '/evidence/' + encodeURIComponent(shot.id));
+          if (response instanceof Response) {
+            image.src = URL.createObjectURL(await response.blob());
+            timeline.append(image);
+          }
+        }
+      }
+
+      document.querySelector('#auth').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        sessionStorage.setItem('reviewToken', tokenInput.value.trim());
+        try {
+          await loadSessions();
+          authError.textContent = '';
+          showList();
+        } catch (error) {
+          authError.textContent = error.message;
+        }
+      });
+      document.querySelector('#refresh').addEventListener('click', () => loadSessions().catch((error) => {
+        authError.textContent = error.message;
+      }));
+      document.querySelector('#back').addEventListener('click', () => {
+        detail.hidden = true;
+        showList();
+        loadSessions();
+      });
+      document.querySelector('#download-md').addEventListener('click', () => {
+        if (currentExport?.reviewMd) download('REVIEW.md', currentExport.reviewMd, 'text/markdown');
+      });
+      document.querySelector('#download-json').addEventListener('click', () => {
+        if (currentExport?.reviewJson) download('review.json', JSON.stringify(currentExport.reviewJson, null, 2), 'application/json');
+      });
+      document.querySelector('#finalize').addEventListener('click', async () => {
+        if (!currentId) return;
+        await api('/sessions/' + currentId + '/finalize', { method: 'POST' });
+        await openSession(currentId);
+      });
+
+      if (token()) tokenInput.value = token();
+      loadSessions().then(showList).catch(() => {});
+    </script>
+  </body>
+</html>

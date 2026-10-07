@@ -46,6 +46,10 @@ O teste `recorder-flow.spec.ts` cobre programaticamente os passos 3–16 com tra
    - Screenshots em `evidence/`
    - Sequência de ações até o problema
 
+## Captura pela extensão Chrome
+
+Caminho adicional ao Playwright local. A extensão (Manifest V3) grava a aba atual: voz em chunks, cliques, inventário de clicáveis e print do viewport. A API compila o mesmo `REVIEW.md`. Histórico em `GET /`. Deploy: `jenkies/infra/k3s/dev/review-recorder.yaml`.
+
 ## Sessões recuperáveis
 
 Após crash do processo, sessões em `RECORDING`/`PAUSED` viram `RECOVERABLE`. Na tela inicial, use **Compilar e finalizar** para gerar artefatos a partir do `events.jsonl` persistido.

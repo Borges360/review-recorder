@@ -10,6 +10,11 @@ docs/discovery/YYYY-MM-DD-<tema>.md
 
 Exemplo: `docs/discovery/2026-08-30-export-markdown-v2.md`
 
+## Documentos
+
+- [2026-08-30 — sync fala ↔ clique](2026-08-30-click-speech-sync.md)
+- [2026-10-06 — extensão Chrome e API no homelab](2026-10-06-extensao-chrome-homelab.md) (rascunho)
+
 ## Fluxo
 
 ```text

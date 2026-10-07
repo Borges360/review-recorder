@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import type { SessionManager } from '../session/SessionManager.js';
+import type { ExtensionClientEvent, SessionManager } from '../session/SessionManager.js';
 import { SessionCompiler } from '../export/SessionCompiler.js';
 import type { AppConfig } from '../shared/types.js';
 import { resolveSessionOutputDir } from '../shared/config.js';
@@ -14,6 +14,10 @@ function notFound(reply: FastifyReply, message: string) {
   return reply.code(404).send({ error: message });
 }
 
+function headerString(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+}
+
 export async function registerRoutes(
   app: FastifyInstance,
   sessions: SessionManager,
@@ -25,16 +29,22 @@ export async function registerRoutes(
     openaiConfigured: Boolean(config.openaiApiKey),
   }));
 
-  app.get('/sessions', async () => sessions.listSessions());
+  app.get<{ Querystring: { limit?: string } }>('/sessions', async (req) => {
+    const parsed = Number(req.query.limit ?? 20);
+    const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 200) : 20;
+    return sessions.listSessions(limit);
+  });
 
-  app.post<{ Body: { name: string; initialUrl?: string; description?: string } }>(
-    '/sessions',
-    async (req, reply) => {
-      const { name, initialUrl, description } = req.body;
-      if (!name?.trim()) return badRequest(reply, 'name is required');
-      return sessions.createSession(name.trim(), initialUrl, description);
-    },
-  );
+  app.post<{
+    Body: { name: string; initialUrl?: string; description?: string; capture?: 'playwright' | 'extension' };
+  }>('/sessions', async (req, reply) => {
+    const { name, initialUrl, description, capture } = req.body;
+    if (!name?.trim()) return badRequest(reply, 'name is required');
+    if (capture && capture !== 'playwright' && capture !== 'extension') {
+      return badRequest(reply, 'capture must be playwright or extension');
+    }
+    return sessions.createSession(name.trim(), initialUrl, description, capture);
+  });
 
   app.get<{ Params: { id: string } }>('/sessions/:id', async (req, reply) => {
     const session = sessions.getSession(req.params.id);
@@ -52,10 +62,6 @@ export async function registerRoutes(
 
   app.post<{ Params: { id: string } }>('/sessions/:id/resume', async (req) => {
     return sessions.resumeSession(req.params.id);
-  });
-
-  app.post<{ Params: { id: string } }>('/sessions/:id/screenshot', async (req) => {
-    return sessions.screenshotSession(req.params.id);
   });
 
   app.post<{ Params: { id: string } }>('/sessions/:id/stop', async (req) => {
@@ -117,6 +123,61 @@ export async function registerRoutes(
       }
     });
   }
+
+  app.post<{ Params: { id: string }; Body: { events?: ExtensionClientEvent[] } }>(
+    '/sessions/:id/events',
+    async (req, reply) => {
+      try {
+        const events = req.body?.events;
+        if (!Array.isArray(events) || events.length === 0) return badRequest(reply, 'events are required');
+        return await sessions.ingestExtensionEvents(req.params.id, events);
+      } catch (e) {
+        return badRequest(reply, String(e));
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string } }>('/sessions/:id/audio', async (req, reply) => {
+    try {
+      const clientId = headerString(req.headers['x-client-id']);
+      const chunkStartMs = Number(headerString(req.headers['x-chunk-start-ms']) ?? '0');
+      const durationMs = Number(headerString(req.headers['x-chunk-duration-ms']) ?? '5000');
+      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      return await sessions.ingestExtensionAudio(req.params.id, clientId, chunkStartMs, durationMs, bytes);
+    } catch (e) {
+      return badRequest(reply, String(e));
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/sessions/:id/screenshot', async (req, reply) => {
+    try {
+      if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+        const clientId = headerString(req.headers['x-client-id']);
+        const elapsedMs = Number(headerString(req.headers['x-elapsed-ms']) ?? '0');
+        const activeElapsedMs = Number(headerString(req.headers['x-active-elapsed-ms']) ?? '0');
+        return await sessions.ingestExtensionScreenshot(
+          req.params.id,
+          clientId,
+          elapsedMs,
+          activeElapsedMs,
+          req.body,
+        );
+      }
+      return await sessions.screenshotSession(req.params.id);
+    } catch (e) {
+      return badRequest(reply, String(e));
+    }
+  });
+
+  app.get<{ Params: { id: string } }>('/sessions/:id/evidence', async (req) => {
+    return sessions.listExtensionEvidence(req.params.id);
+  });
+
+  app.get<{ Params: { id: string; evidenceId: string } }>('/sessions/:id/evidence/:evidenceId', async (req, reply) => {
+    const found = sessions.getExtensionEvidence(req.params.id, req.params.evidenceId);
+    if (!found) return notFound(reply, 'Evidence not found');
+    return reply.type('image/png').send(found.bytes);
+  });
 
   app.get<{ Params: { id: string } }>('/sessions/:id/export', async (req, reply) => {
     const session = sessions.getSession(req.params.id);

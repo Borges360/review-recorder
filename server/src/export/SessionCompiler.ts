@@ -205,10 +205,10 @@ export class SessionCompiler {
     }
 
     staged.sort((a, b) => a.atMs - b.atMs || 0);
-    const entries: TimelineEntry[] = staged.map((item, idx) => ({
+    const entries = staged.map((item, idx) => ({
       ...item.entry,
       id: `tl-${idx}`,
-    }));
+    })) as TimelineEntry[];
 
     const reducer = new TimelineReducer();
     const review: ReviewPackage = {

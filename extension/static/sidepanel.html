@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Review Recorder</title>
+    <style>
+      body { font-family: "Segoe UI", sans-serif; width: 320px; margin: 16px; color: #1c1915; }
+      label { display: block; font-size: 13px; margin-bottom: 12px; }
+      input { width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px; }
+      button { margin: 4px 4px 0 0; padding: 8px 10px; }
+      #status { color: #6d6458; }
+    </style>
+  </head>
+  <body>
+    <h1>Revisão</h1>
+    <label>Nome
+      <input id="name" value="Revisão" />
+    </label>
+    <button id="start" type="button">Gravar</button>
+    <button id="pause" type="button">Pausar</button>
+    <button id="resume" type="button">Retomar</button>
+    <button id="shot" type="button">Print</button>
+    <button id="stop" type="button">Parar</button>
+    <p><button id="history" type="button">Abrir histórico</button></p>
+    <p><button id="options" type="button">Configurar API</button></p>
+    <p id="status">Pronta</p>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

@@ -20,11 +20,15 @@ export interface TranscriberCallbacks {
   onError: (error: string) => void;
 }
 
+/** Commit buffered audio periodically — gpt-live-transcribe requires explicit commits (no server VAD). */
+const AUDIO_COMMIT_INTERVAL_MS = 30_000;
+
 export class OpenAITranscriber {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private closed = false;
   private audioMsWritten = 0;
+  private lastCommitAudioMs = 0;
 
   constructor(
     private readonly apiKey: string,
@@ -75,12 +79,7 @@ export class OpenAITranscriber {
           input: {
             format: { type: 'audio/pcm', rate: 24000 },
             transcription: { model: 'gpt-live-transcribe', languages: ['pt'], delay: 'low' },
-            turn_detection: {
-              type: 'server_vad',
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 700,
-            },
+            turn_detection: null,
           },
         },
       },
@@ -124,6 +123,10 @@ export class OpenAITranscriber {
       type: 'input_audio_buffer.append',
       audio: pcmBuffer.toString('base64'),
     });
+    if (this.audioMsWritten - this.lastCommitAudioMs >= AUDIO_COMMIT_INTERVAL_MS) {
+      this.commitBuffer();
+      this.lastCommitAudioMs = this.audioMsWritten;
+    }
   }
 
   commitBuffer(): void {

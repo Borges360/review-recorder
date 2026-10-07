@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Configurar API</title>
+    <style>
+      body { font-family: "Segoe UI", sans-serif; max-width: 520px; margin: 32px auto; }
+      label { display: block; margin-bottom: 12px; }
+      input { width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px; }
+      button { margin-right: 8px; padding: 8px 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>API do homelab</h1>
+    <label>URL
+      <input id="base" placeholder="https://review.luizfelipeborges.dev" />
+    </label>
+    <label>Token
+      <input id="token" type="password" />
+    </label>
+    <button id="save" type="button">Salvar</button>
+    <button id="test" type="button">Testar</button>
+    <p id="result"></p>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -21,6 +21,7 @@ export default function App() {
   const [wallMs, setWallMs] = useState(0);
   const [currentUrl, setCurrentUrl] = useState('');
   const [alert, setAlert] = useState<string | null>(null);
+  const [alertCritical, setAlertCritical] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
   const [openaiConfigured, setOpenaiConfigured] = useState(true);
   const [browserClosed, setBrowserClosed] = useState(false);
@@ -33,6 +34,24 @@ export default function App() {
   const stoppingRef = useRef(false);
   const activeMsRef = useRef(0);
   const wallMsRef = useRef(0);
+  const transcriptReceivedRef = useRef(false);
+  const transcriptionHealthTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTranscriptionAlert = useCallback((message: string, critical = true) => {
+    setAlert(message);
+    setAlertCritical(critical);
+  }, []);
+
+  const parseRecorderError = (raw: unknown): string => {
+    if (typeof raw !== 'string') return 'Erro na transcrição. O áudio continua sendo gravado localmente.';
+    try {
+      const parsed = JSON.parse(raw) as { message?: string };
+      if (parsed.message) return `Transcrição indisponível: ${parsed.message}. O áudio continua sendo gravado.`;
+    } catch {
+      /* plain string */
+    }
+    return `Transcrição indisponível: ${raw}. O áudio continua sendo gravado.`;
+  };
 
   const loadSessions = useCallback(async () => {
     try {
@@ -92,19 +111,39 @@ export default function App() {
         }
         switch (event.type) {
           case 'TRANSCRIPT_PARTIAL':
+            transcriptReceivedRef.current = true;
             setPartialTranscript((event.payload.text as string) ?? '');
+            if (alertCritical) {
+              setAlert(null);
+              setAlertCritical(false);
+            }
             break;
           case 'TRANSCRIPT_FINAL':
+            transcriptReceivedRef.current = true;
             setPartialTranscript((event.payload.segment as { text: string })?.text ?? '');
+            if (alertCritical) {
+              setAlert(null);
+              setAlertCritical(false);
+            }
             break;
           case 'NAVIGATION':
             setCurrentUrl((event.payload.url as string) ?? '');
             break;
+          case 'RECORDER_ERROR':
+            showTranscriptionAlert(parseRecorderError(event.payload.error), true);
+            break;
           case 'TRANSCRIPTION_OFFLINE':
-            setAlert('Transcrição temporariamente offline. O áudio está sendo preservado localmente.');
+            showTranscriptionAlert(
+              (event.payload.reason as string) === 'no_api_key'
+                ? 'Transcrição offline: OPENAI_API_KEY não configurada. O áudio está sendo gravado localmente.'
+                : 'Transcrição offline. O áudio está sendo gravado localmente, mas o texto não está sendo gerado.',
+              true,
+            );
             break;
           case 'TRANSCRIPTION_ONLINE':
-            setAlert(null);
+            if (!alertCritical) {
+              setAlert(null);
+            }
             break;
           case 'MICROPHONE_DISCONNECTED':
             setAlert('Microfone desconectado. A navegação continua sendo registrada.');
@@ -124,11 +163,12 @@ export default function App() {
         /* ignore */
       }
     };
-  }, [finalizeUi]);
+  }, [finalizeUi, alertCritical, showTranscriptionAlert]);
 
   const handleStart = async () => {
     if (!name.trim()) return;
     setAlert(null);
+    setAlertCritical(false);
 
     audioRef.current?.stop();
     const capture = new AudioCapture(setMicLevel, (msg) => setAlert(msg));
@@ -152,6 +192,7 @@ export default function App() {
       setPartialTranscript('');
       setBrowserClosed(false);
       stoppingRef.current = false;
+      transcriptReceivedRef.current = false;
       connectEvents(session.id);
       try {
         await capture.start(audioWsUrl(session.id));
@@ -165,6 +206,18 @@ export default function App() {
           setWallMs((m) => m + 1000);
         }
       }, 1000);
+
+      if (transcriptionHealthTimerRef.current) {
+        clearTimeout(transcriptionHealthTimerRef.current);
+      }
+      transcriptionHealthTimerRef.current = setTimeout(() => {
+        if (!transcriptReceivedRef.current && openaiConfigured && !pausedRef.current) {
+          showTranscriptionAlert(
+            'Nenhuma transcrição recebida nos primeiros 15 segundos. Verifique microfone e OPENAI_API_KEY. O áudio continua sendo gravado.',
+            true,
+          );
+        }
+      }, 15_000);
     } catch (e) {
       setAlert(String(e));
     }
@@ -278,7 +331,7 @@ export default function App() {
           </div>
         </div>
 
-        {alert && <div className="alert">{alert}</div>}
+        {alert && <div className={`alert${alertCritical ? ' alert-critical' : ''}`}>{alert}</div>}
         {!openaiConfigured && !alert && (
           <div className="alert">OPENAI_API_KEY não configurada. Áudio será gravado localmente.</div>
         )}

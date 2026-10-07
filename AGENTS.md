@@ -41,7 +41,8 @@ server/src/
 ├── persistence/  # EventStore, SessionRepository
 └── shared/       # types, config, events
 
-ui/src/           # Control UI (React)
+ui/src/           # Control UI (React) — captura Playwright local
+extension/        # extensão Chrome MV3
 fixtures/         # app demo para testes
 sessions/         # artefatos gerados (gitignored)
 ```
@@ -49,9 +50,11 @@ sessions/         # artefatos gerados (gitignored)
 ### Fluxo de sessão
 
 1. UI cria sessão → `SessionManager.start()`
-2. Playwright abre browser com HUD in-page
+2. Playwright abre browser com HUD in-page **ou** a extensão Chrome grava a aba já aberta (`capture=extension`)
 3. Eventos (cliques, navegação, fala) → `EventStore` (JSONL)
 4. `finalize` → `SessionCompiler` → `REVIEW.md` + `review.json`
+
+A extensão aponta para uma API configurável (`apiBaseUrl` + bearer). No homelab a API sobe em `review.lab` / `review.luizfelipeborges.dev`, com Postgres e bucket MinIO `review-recorder`. O histórico abre em `GET /`. Detalhe: `docs/discovery/2026-10-06-extensao-chrome-homelab.md`.
 
 ### Tipos centrais
 
