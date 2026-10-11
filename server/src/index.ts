@@ -27,7 +27,14 @@ export async function buildApp() {
   app.addHook('onRequest', async (req, reply) => {
     if (!config.apiToken) return;
     const path = req.url.split('?')[0] ?? req.url;
-    if (path === '/health' || path === '/' || path.startsWith('/demo')) return;
+    if (
+      path === '/health' ||
+      path === '/' ||
+      path.startsWith('/demo') ||
+      path.startsWith('/assets/inteiro/')
+    ) {
+      return;
+    }
     const header = req.headers.authorization;
     if (header !== `Bearer ${config.apiToken}`) {
       return reply.code(401).send({ error: 'unauthorized' });
@@ -59,6 +66,20 @@ export async function buildApp() {
   const historyPath = existsSync(join(__dirname, '../history/index.html'))
     ? join(__dirname, '../history/index.html')
     : join(__dirname, '../../history/index.html');
+  const inteiroRoot = join(__dirname, '../..');
+  const inteiroStyles: Record<string, string> = {
+    '/assets/inteiro/tokens.css': join(inteiroRoot, 'node_modules/@inteiro/tokens/dist/css/inteiro.css'),
+    '/assets/inteiro/components.css': join(
+      inteiroRoot,
+      'node_modules/@inteiro/design-system/src/components.css',
+    ),
+  };
+  for (const [url, filePath] of Object.entries(inteiroStyles)) {
+    app.get(url, async (_req, reply) => {
+      if (!existsSync(filePath)) return reply.code(404).send('INTEIRO CSS ausente');
+      return reply.type('text/css; charset=utf-8').send(readFileSync(filePath));
+    });
+  }
   app.get('/', async (_req, reply) => {
     return reply.type('text/html; charset=utf-8').send(readFileSync(historyPath, 'utf8'));
   });

@@ -1,26 +1,30 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="in-root" data-in-theme="dark" data-in-density="focus">
   <head>
     <meta charset="utf-8" />
     <title>Configurar API</title>
+    <link rel="stylesheet" href="vendor/inteiro-tokens.css" />
+    <link rel="stylesheet" href="vendor/inteiro-components.css" />
     <style>
-      body { font-family: "Segoe UI", sans-serif; max-width: 520px; margin: 32px auto; }
-      label { display: block; margin-bottom: 12px; }
-      input { width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px; }
-      button { margin-right: 8px; padding: 8px 12px; }
+      body { max-width: 520px; margin: 32px auto; }
+      .in-field { margin-bottom: 12px; }
+      .in-input { width: 100%; box-sizing: border-box; }
+      .actions { display: flex; gap: 8px; }
     </style>
   </head>
   <body>
-    <h1>API do homelab</h1>
-    <label>URL
-      <input id="base" placeholder="https://review.luizfelipeborges.dev" />
+    <h1 class="in-title">API do homelab</h1>
+    <label class="in-field">URL
+      <input class="in-input" id="base" placeholder="https://review.luizfelipeborges.dev" />
     </label>
-    <label>Token
-      <input id="token" type="password" />
+    <label class="in-field">Token
+      <input class="in-input" id="token" type="password" />
     </label>
-    <button id="save" type="button">Salvar</button>
-    <button id="test" type="button">Testar</button>
-    <p id="result"></p>
+    <div class="actions">
+      <button id="save" class="in-button in-button--primary" type="button">Salvar</button>
+      <button id="test" class="in-button in-button--secondary" type="button">Testar</button>
+    </div>
+    <p id="result" class="in-muted"></p>
     <script src="options.js"></script>
   </body>
 </html>

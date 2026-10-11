@@ -1,0 +1,13 @@
+{
+  "harness": "cursor",
+  "version": "1.0.0",
+  "mechanism": "AGENTS.md + .cursor/rules/*.mdc + Skills (.cursor/skills e .agents/skills) + Cursor Plugins + MCP",
+  "verified": "partially-tested",
+  "sources": [
+    "https://cursor.com/docs/rules",
+    "https://cursor.com/docs/skills",
+    "https://cursor.com/docs/plugins.md",
+    "https://cursor.com/docs/reference/plugins"
+  ],
+  "installedAt": "2026-10-10T23:03:22.755Z"
+}

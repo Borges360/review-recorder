@@ -142,7 +142,7 @@ export interface AppConfig {
   useFakeTranscriber: boolean;
   mockBrowser: boolean;
   browserHeadless: boolean;
-  /** When set, every route except health, demo and the history page requires this bearer token. */
+  /** When set, every route except health, demo, the history page and its INTEIRO stylesheets requires this bearer token. */
   apiToken: string | null;
   databaseUrl: string | null;
   s3: S3Config | null;

@@ -1,5 +1,16 @@
 import * as esbuild from 'esbuild';
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const vendorDir = 'static/vendor';
+mkdirSync(vendorDir, { recursive: true });
+cpSync(join(repoRoot, 'node_modules/@inteiro/tokens/dist/css/inteiro.css'), join(vendorDir, 'inteiro-tokens.css'));
+cpSync(
+  join(repoRoot, 'node_modules/@inteiro/design-system/src/components.css'),
+  join(vendorDir, 'inteiro-components.css'),
+);
 
 rmSync('dist', { recursive: true, force: true });
 mkdirSync('dist', { recursive: true });

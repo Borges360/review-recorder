@@ -1,0 +1,7 @@
+{
+  "name": "inteiro",
+  "version": "1.0.0",
+  "description": "INTEIRO Cursor plugin",
+  "skills": "./.cursor/skills",
+  "rules": "./.cursor/rules"
+}

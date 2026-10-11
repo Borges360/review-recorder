@@ -77,7 +77,7 @@ export function SessionDetailView({
 
   return (
     <div className="app">
-      <button className="btn btn-secondary btn-sm back-btn" onClick={onBack}>
+      <button className="in-button in-button--ghost in-button--sm back-btn" onClick={onBack}>
         ← Voltar
       </button>
       <h1>{session.name}</h1>
@@ -124,10 +124,10 @@ export function SessionDetailView({
           <div className="review-header">
             <h2>REVIEW.md</h2>
             <div className="review-actions">
-              <button className="btn btn-secondary btn-sm" onClick={() => void handleCopyReview()}>
+              <button className="in-button in-button--secondary in-button--sm" onClick={() => void handleCopyReview()}>
                 Copiar
               </button>
-              <button className="btn btn-secondary btn-sm" onClick={handleDownloadReview}>
+              <button className="in-button in-button--secondary in-button--sm" onClick={handleDownloadReview}>
                 Baixar
               </button>
               {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
@@ -195,7 +195,7 @@ export function SessionDetailPage({ sessionId }: { sessionId: string }) {
   if (error || !session) {
     return (
       <div className="app">
-        <button className="btn btn-secondary btn-sm back-btn" onClick={() => navigate('/')}>
+        <button className="in-button in-button--ghost in-button--sm back-btn" onClick={() => navigate('/')}>
           ← Voltar
         </button>
         <div className="alert">{error ?? 'Sessão não encontrada'}</div>

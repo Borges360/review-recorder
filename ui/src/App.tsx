@@ -310,7 +310,7 @@ export default function App() {
         <div className="recording-header">
           <span className={`recording-dot ${isPaused ? 'paused' : ''}`} />
           <strong>{isPaused ? 'PAUSADO' : 'GRAVANDO'}</strong>
-          <span style={{ marginLeft: 'auto', color: '#9aa0a6' }}>{current.name}</span>
+          <span className="in-muted" style={{ marginLeft: 'auto' }}>{current.name}</span>
         </div>
 
         <div className="timers">
@@ -341,19 +341,19 @@ export default function App() {
         </div>
 
         <div className="controls">
-          <button className="btn btn-secondary" onClick={() => void handlePause()}>
+          <button className="in-button in-button--secondary" onClick={() => void handlePause()}>
             {isPaused ? 'Resume' : 'Pause'}
           </button>
           <button
-            className={`btn btn-secondary${browserClosed ? ' btn-highlight' : ''}`}
+            className={`in-button in-button--secondary${browserClosed ? ' is-highlight' : ''}`}
             onClick={() => void handleReopenBrowser()}
           >
             Abrir browser
           </button>
-          <button className="btn btn-secondary" onClick={() => void handleScreenshot()}>
+          <button className="in-button in-button--secondary" onClick={() => void handleScreenshot()}>
             Screenshot
           </button>
-          <button className="btn btn-danger" onClick={() => void handleStop()}>
+          <button className="in-button in-button--danger" onClick={() => void handleStop()}>
             Finalizar
           </button>
         </div>
@@ -378,6 +378,7 @@ export default function App() {
       <label htmlFor="name">Nome da sessão</label>
       <input
         id="name"
+        className="in-input"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Gerar contrato"
@@ -386,6 +387,7 @@ export default function App() {
       <label htmlFor="description">Descrição (opcional)</label>
       <input
         id="description"
+        className="in-input"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Revisão do fluxo de geração de contrato"
@@ -394,6 +396,7 @@ export default function App() {
       <label htmlFor="url">URL inicial</label>
       <input
         id="url"
+        className="in-input"
         value={initialUrl}
         onChange={(e) => setInitialUrl(e.target.value)}
         placeholder="https://sistema/..."
@@ -401,7 +404,7 @@ export default function App() {
 
       {alert && <div className="alert">{alert}</div>}
 
-      <button className="btn btn-primary" onClick={() => void handleStart()} disabled={!name.trim()}>
+      <button className="in-button in-button--primary is-block" onClick={() => void handleStart()} disabled={!name.trim()}>
         Iniciar sessão
       </button>
 
@@ -415,7 +418,7 @@ export default function App() {
                 <span className="recoverable-badge">RECOVERABLE</span>
               </div>
               <div className="recoverable-actions">
-                <button className="btn btn-secondary btn-sm" onClick={() => void handleFinalizeRecoverable(s)}>
+                <button className="in-button in-button--commit in-button--sm" onClick={() => void handleFinalizeRecoverable(s)}>
                   Compilar e finalizar
                 </button>
               </div>
@@ -442,7 +445,7 @@ export default function App() {
               }}
             >
               <span>{s.name}</span>
-              <span style={{ color: '#9aa0a6' }}>
+              <span className="in-muted">
                 {s.status === 'COMPLETED' ? 'Ver resultado →' : formatDate(s.createdAt)}
               </span>
             </div>

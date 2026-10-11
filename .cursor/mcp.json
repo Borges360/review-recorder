@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "inteiro": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\felip\\Desenvolvimento\\IDS\\packages\\mcp\\src\\server.ts"
+      ]
+    }
+  }
+}
