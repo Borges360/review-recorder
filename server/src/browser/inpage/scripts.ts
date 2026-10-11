@@ -1,3 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const fontUrl = new URL('../../../../assets/recursive/recursive-latin.woff2', import.meta.url);
+const hudStyles = readFileSync(require.resolve('@inteiro/tokens/css'), 'utf8')
+  + readFileSync(require.resolve('@inteiro/design-system/css/components'), 'utf8')
+  + '@font-face { font-family: Recursive; font-style: oblique -15deg 0deg; font-weight: 300 1000; font-display: swap; src: url(data:font/woff2;base64,'
+  + readFileSync(fontUrl).toString('base64') + ') format("woff2"); }';
+
 // In-page agent script — injected via addInitScript
 // This file is bundled as a string for injection
 
@@ -143,61 +152,67 @@ export const INPAGE_HUD_SOURCE = `
 
   const host = document.createElement('div');
   host.id = '__ui-review-hud-host';
-  host.style.cssText = 'all:initial;position:fixed;top:12px;right:12px;z-index:2147483647;font-family:system-ui,sans-serif;';
+  host.style.cssText = 'all:initial;position:fixed;top:12px;right:12px;z-index:2147483647;max-inline-size:calc(100vw - 24px);';
   document.documentElement.appendChild(host);
 
   const shadow = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = \`
+  style.textContent = ${JSON.stringify(hudStyles)} + \`
     * { box-sizing: border-box; margin: 0; padding: 0; }
     .panel {
-      background: rgba(20,20,24,0.92);
-      color: #f0f0f0;
-      border-radius: 10px;
+      min-block-size: 0;
+      background: var(--in-color-background-surface);
+      color: var(--in-color-text-primary);
+      border-radius: var(--in-radius-lg);
       padding: 12px 14px;
-      min-width: 280px;
-      max-width: 360px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      min-width: min(280px, calc(100vw - 24px));
+      max-width: min(360px, calc(100vw - 24px));
+      box-shadow: var(--in-elevation-3);
       font-size: 13px;
       line-height: 1.4;
     }
     .status { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 8px; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
-    .dot.paused { background: #f59e0b; }
-    .dot.recording { background: #ef4444; animation: pulse 1.2s infinite; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--in-color-status-danger); }
+    .dot.paused { background: var(--in-color-status-warning); }
+    .dot.recording { background: var(--in-color-status-danger); animation: pulse 1.2s infinite; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
     .timer { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 6px 0; }
     .timers { display: flex; gap: 16px; margin: 6px 0; }
     .timer-block { display: flex; flex-direction: column; }
-    .timer-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .timer-label { font-size: 10px; color: var(--in-color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
     .timer-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .transcript { background: rgba(255,255,255,0.08); border-radius: 6px; padding: 8px; min-height: 40px; margin: 8px 0; font-style: italic; color: #ccc; }
-    .url { font-size: 11px; color: #888; word-break: break-all; margin-bottom: 8px; }
+    .transcript { background: var(--in-color-background-raised); border-radius: var(--in-radius-md); padding: 8px; min-height: 40px; margin: 8px 0; font-style: italic; color: var(--in-color-text-secondary); }
+    .url { font-size: 11px; color: var(--in-color-text-secondary); word-break: break-all; margin-bottom: 8px; }
     .buttons { display: flex; gap: 6px; flex-wrap: wrap; }
     button {
       flex: 1;
+      min-block-size: 44px;
       min-width: 70px;
       padding: 6px 10px;
       border: none;
-      border-radius: 6px;
+      border-radius: var(--in-radius-md);
       cursor: pointer;
       font-size: 12px;
       font-weight: 600;
-      background: #3b3b44;
-      color: #fff;
+      background: var(--in-color-background-raised);
+      color: var(--in-color-text-primary);
     }
-    button:hover { background: #4a4a55; }
-    button.primary { background: #2563eb; }
-    button.danger { background: #dc2626; }
+    button:hover { background: var(--in-color-background-sunken); }
+    button.primary { background: var(--in-color-action-primary-background); color: var(--in-color-action-primary-foreground); }
+    button.danger { background: var(--in-color-action-danger-background); color: var(--in-color-action-danger-foreground); }
+    button:focus-visible { outline: var(--in-border-focus) solid var(--in-color-focus-ring); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .dot.recording { animation: none; } }
     .hidden { display: none !important; }
   \`;
   shadow.appendChild(style);
 
   const panel = document.createElement('div');
-  panel.className = 'panel';
+  panel.className = 'panel in-root';
+  panel.dataset.inTheme = 'dark';
+  panel.dataset.inDensity = 'focus';
   panel.innerHTML = \`
     <div class="status"><span class="dot recording" id="dot"></span><span id="statusText">GRAVANDO</span></div>
-    <div id="sessionName" style="font-size:11px;color:#aaa;margin-bottom:4px;"></div>
+    <div id="sessionName" style="font-size:11px;color:var(--in-color-text-secondary);margin-bottom:4px;"></div>
     <div class="timers">
       <div class="timer-block">
         <span class="timer-label">Ativo</span>

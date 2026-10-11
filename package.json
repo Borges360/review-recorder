@@ -19,7 +19,8 @@
     "recover-transcript": "npm run recover-transcript --workspace=server",
     "start": "npm run start --workspace=server",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "node scripts/patch-inteiro-bin.mjs"
   },
   "engines": {
     "node": ">=24.0.0"

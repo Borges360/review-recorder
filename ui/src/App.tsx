@@ -418,7 +418,7 @@ export default function App() {
                 <span className="recoverable-badge">RECOVERABLE</span>
               </div>
               <div className="recoverable-actions">
-                <button className="in-button in-button--commit in-button--sm" onClick={() => void handleFinalizeRecoverable(s)}>
+                <button className="in-button in-button--secondary in-button--sm" onClick={() => void handleFinalizeRecoverable(s)}>
                   Compilar e finalizar
                 </button>
               </div>

@@ -15,7 +15,8 @@ describe('histórico com INTEIRO', () => {
       expect(page.body).toContain('data-in-density="focus"');
       expect(page.body).toContain('/assets/inteiro/tokens.css');
       expect(page.body).toContain('in-button--primary');
-      expect(page.body).toContain('in-button--commit');
+      expect(page.body).toContain('id="finalize" class="in-button in-button--secondary"');
+      expect(page.body).not.toContain('in-button--commit');
 
       const tokens = await app.inject({ method: 'GET', url: '/assets/inteiro/tokens.css' });
       expect(tokens.statusCode).toBe(200);
@@ -25,6 +26,14 @@ describe('histórico com INTEIRO', () => {
       const components = await app.inject({ method: 'GET', url: '/assets/inteiro/components.css' });
       expect(components.statusCode).toBe(200);
       expect(components.body).toContain('.in-button--commit');
+
+      const fontCss = await app.inject({ method: 'GET', url: '/assets/inteiro/recursive/fonts.css' });
+      expect(fontCss.statusCode).toBe(200);
+      expect(fontCss.body).toContain('recursive-latin.woff2');
+      const font = await app.inject({ method: 'GET', url: '/assets/inteiro/recursive/recursive-latin.woff2' });
+      expect(font.statusCode).toBe(200);
+      expect(font.headers['content-type']).toContain('font/woff2');
+      expect(font.rawPayload.subarray(0, 4).toString()).toBe('wOF2');
 
       const denied = await app.inject({ method: 'GET', url: '/sessions' });
       expect(denied.statusCode).toBe(401);
