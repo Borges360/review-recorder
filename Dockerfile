@@ -5,6 +5,9 @@ COPY package.json package-lock.json tsconfig.base.json ./
 COPY server/package.json server/package.json
 COPY ui/package.json ui/package.json
 COPY extension/package.json extension/package.json
+# Pacotes INTEIRO versionados no repositório (sem depender de checkout irmão) e postinstall.
+COPY vendor vendor
+COPY scripts scripts
 RUN npm ci
 COPY server server
 COPY fixtures fixtures
