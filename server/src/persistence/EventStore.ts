@@ -1,5 +1,5 @@
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import type { WriteStream } from 'node:fs';
 import type { EventEnvelope } from '../shared/types.js';
 
