@@ -55,3 +55,7 @@ Thumbs.db
 .mcp.json
 .pi/mcp.json
 .codex-plugin/
+
+# Saídas geradas pelos E2E.
+test-sessions-e2e/
+test-sessions-e2e-recorder/
