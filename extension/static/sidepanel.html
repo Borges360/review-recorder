@@ -1,32 +1,93 @@
 <!doctype html>
-<html lang="pt-BR" class="in-root" data-in-theme="dark" data-in-density="focus">
+<html lang="en" class="in-root" data-in-theme="dark" data-in-density="focus">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Review Recorder</title>
     <link rel="stylesheet" href="vendor/inteiro-tokens.css" />
     <link rel="stylesheet" href="vendor/inteiro-components.css" />
+    <link rel="stylesheet" href="vendor/recursive/fonts.css" />
     <style>
-      body { width: 320px; margin: 16px; }
-      .in-field { margin-bottom: 12px; }
-      .in-input { width: 100%; box-sizing: border-box; }
-      .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      body {
+        box-sizing: border-box;
+        max-inline-size: 320px;
+        margin: 16px;
+      }
+      .in-field {
+        margin-bottom: 12px;
+      }
+      .in-input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .actions > button {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+      }
+      #status {
+        min-block-size: 1.5em;
+        overflow-wrap: anywhere;
+      }
+      [hidden] {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
-    <h1 class="in-title">Revisão</h1>
-    <label class="in-field">Nome
-      <input class="in-input" id="name" value="Revisão" />
+    <label class="in-field" for="language"
+      ><span data-i18n="languageLabel">Language</span>
+      <select class="in-input" id="language" name="uiLanguage">
+        <option value="en">English</option>
+        <option value="pt-BR">Português (Brasil)</option>
+      </select>
+    </label>
+    <h1 class="in-title" data-i18n="panelTitle">Review</h1>
+    <label class="in-field" for="name"
+      ><span data-i18n="reviewNameLabel">Review name</span>
+      <input class="in-input" id="name" value="Review" />
     </label>
     <div class="actions">
-      <button id="start" class="in-button in-button--primary" type="button">Gravar</button>
-      <button id="pause" class="in-button in-button--secondary" type="button">Pausar</button>
-      <button id="resume" class="in-button in-button--secondary" type="button">Retomar</button>
-      <button id="shot" class="in-button in-button--secondary" type="button">Print</button>
-      <button id="stop" class="in-button in-button--danger" type="button">Parar</button>
+      <button id="start" class="in-button in-button--primary" type="button" data-i18n="start">
+        Record
+      </button>
+      <button id="pause" class="in-button in-button--secondary" type="button" data-i18n="pause">
+        Pause
+      </button>
+      <button id="resume" class="in-button in-button--secondary" type="button" data-i18n="resume">
+        Resume
+      </button>
+      <button id="shot" class="in-button in-button--secondary" type="button" data-i18n="screenshot">
+        Capture screenshot
+      </button>
+      <button id="stop" class="in-button in-button--danger" type="button" data-i18n="stop">
+        Stop
+      </button>
+      <button
+        id="cancel-action"
+        class="in-button in-button--ghost"
+        type="button"
+        hidden
+        data-i18n="cancelWait"
+      >
+        Cancel wait
+      </button>
     </div>
-    <p><button id="history" class="in-button in-button--ghost" type="button">Abrir histórico</button></p>
-    <p><button id="options" class="in-button in-button--ghost" type="button">Configurar API</button></p>
-    <p id="status" class="in-muted">Pronta</p>
+    <p>
+      <button id="history" class="in-button in-button--ghost" type="button" data-i18n="history">
+        Open history
+      </button>
+    </p>
+    <p>
+      <button id="options" class="in-button in-button--ghost" type="button" data-i18n="configure">
+        Configure API
+      </button>
+    </p>
+    <p id="status" class="in-muted" role="status" aria-live="polite" aria-atomic="true">Ready.</p>
     <script src="sidepanel.js"></script>
   </body>
 </html>

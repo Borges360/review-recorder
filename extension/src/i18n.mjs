@@ -1,0 +1,128 @@
+export const DEFAULT_LANGUAGE = 'en';
+export const LANGUAGE_STORAGE_KEY = 'uiLanguage';
+
+export const messages = Object.freeze({
+  en: Object.freeze({
+    languageLabel: 'Language',
+    optionsTitle: 'Review Recorder settings',
+    settingsHelp: 'API settings stay in a draft until you choose Save.',
+    apiUrlLabel: 'API URL',
+    tokenLabel: 'Access token',
+    settingsActions: 'Settings actions',
+    discard: 'Discard',
+    testApi: 'Test API',
+    cancelTest: 'Cancel test',
+    save: 'Save',
+    testCanceled: 'Test canceled.',
+    changesDiscarded: 'Changes discarded.',
+    settingsLoaded: 'Settings loaded.',
+    loadFailed: 'Could not load settings. You can still edit and save.',
+    invalidUrl: 'Enter a valid HTTP or HTTPS URL without a username or password.',
+    invalidUrlBeforeTest: 'Enter a valid HTTP or HTTPS URL before testing.',
+    settingsSaved: 'Settings saved.',
+    saveFailed: 'Could not save. Your draft is still available to retry.',
+    testApiProgress: 'Testing the API…',
+    apiAccessible: 'API is reachable.',
+    apiResponseStatus: 'The API returned HTTP {status}.',
+    apiFailed: 'Could not reach the API. Check the URL and try again.',
+    unsupportedLanguage: 'Unsupported saved language; using English.',
+    languageLoadFailed: 'Could not load the language preference; using English.',
+    languageSaved: 'Language preference saved.',
+    languageSaveFailed:
+      'Could not save the language preference. The previous language is still selected.',
+    panelTitle: 'Review',
+    reviewNameLabel: 'Review name',
+    defaultReviewName: 'Review',
+    start: 'Record',
+    pause: 'Pause',
+    resume: 'Resume',
+    screenshot: 'Capture screenshot',
+    stop: 'Stop',
+    cancelWait: 'Cancel wait',
+    history: 'Open history',
+    configure: 'Configure API',
+    recording: 'Recording.',
+    paused: 'Paused.',
+    screenshotRequested: 'Screenshot requested.',
+    reviewFinished: 'Review finished.',
+    commandSentUnconfirmed:
+      'The command was sent, but its result is unconfirmed. Check the state before trying again.',
+    timeoutUnconfirmed:
+      'Timed out. The result is unconfirmed; check the state before trying again.',
+    cannotConfirmAction: 'Could not confirm the action. Check the state before trying again.',
+    configureValidApi: 'Configure a valid API URL in Options.',
+    historyOpened: 'History opened.',
+    historyCannotOpen: 'Could not open history.',
+    optionsCannotOpen: 'Could not open settings.',
+    sendingCommand: 'Sending command…',
+    ready: 'Ready.',
+    stateCannotQuery: 'Could not check the current state. Actions are still available.',
+  }),
+  'pt-BR': Object.freeze({
+    languageLabel: 'Idioma',
+    optionsTitle: 'Configurações do Review Recorder',
+    settingsHelp: 'As configurações da API ficam em um rascunho até você escolher Salvar.',
+    apiUrlLabel: 'URL da API',
+    tokenLabel: 'Token de acesso',
+    settingsActions: 'Ações das configurações',
+    discard: 'Descartar',
+    testApi: 'Testar API',
+    cancelTest: 'Cancelar teste',
+    save: 'Salvar',
+    testCanceled: 'Teste cancelado.',
+    changesDiscarded: 'Alterações descartadas.',
+    settingsLoaded: 'Configurações carregadas.',
+    loadFailed: 'Não foi possível carregar as configurações. Você ainda pode editar e salvar.',
+    invalidUrl: 'Informe uma URL HTTP ou HTTPS válida, sem usuário ou senha.',
+    invalidUrlBeforeTest: 'Informe uma URL HTTP ou HTTPS válida antes de testar.',
+    settingsSaved: 'Configurações salvas.',
+    saveFailed: 'Não foi possível salvar. O rascunho continua disponível para tentar novamente.',
+    testApiProgress: 'Testando a API…',
+    apiAccessible: 'API acessível.',
+    apiResponseStatus: 'A API respondeu com HTTP {status}.',
+    apiFailed: 'Não foi possível acessar a API. Verifique a URL e tente novamente.',
+    unsupportedLanguage: 'Idioma salvo não reconhecido; usando inglês.',
+    languageLoadFailed: 'Não foi possível carregar o idioma; usando inglês.',
+    languageSaved: 'Preferência de idioma salva.',
+    languageSaveFailed: 'Não foi possível salvar o idioma. O idioma anterior continua selecionado.',
+    panelTitle: 'Revisão',
+    reviewNameLabel: 'Nome da revisão',
+    defaultReviewName: 'Revisão',
+    start: 'Gravar',
+    pause: 'Pausar',
+    resume: 'Retomar',
+    screenshot: 'Capturar tela',
+    stop: 'Parar',
+    cancelWait: 'Cancelar espera',
+    history: 'Abrir histórico',
+    configure: 'Configurar API',
+    recording: 'Gravando.',
+    paused: 'Pausada.',
+    screenshotRequested: 'Captura solicitada.',
+    reviewFinished: 'Revisão finalizada.',
+    commandSentUnconfirmed:
+      'O comando foi enviado, mas o resultado não foi confirmado. Confira o estado antes de tentar novamente.',
+    timeoutUnconfirmed:
+      'Tempo limite. O resultado não foi confirmado; confira o estado antes de tentar novamente.',
+    cannotConfirmAction:
+      'Não foi possível confirmar a ação. Confira o estado antes de tentar novamente.',
+    configureValidApi: 'Configure uma URL válida da API nas opções.',
+    historyOpened: 'Histórico aberto.',
+    historyCannotOpen: 'Não foi possível abrir o histórico.',
+    optionsCannotOpen: 'Não foi possível abrir as configurações.',
+    sendingCommand: 'Enviando comando…',
+    ready: 'Pronta.',
+    stateCannotQuery: 'Não foi possível consultar o estado. As ações continuam disponíveis.',
+  }),
+});
+
+export function resolveLanguage(value) {
+  if (value == null || value === '') return { language: DEFAULT_LANGUAGE, unsupported: false };
+  if (Object.hasOwn(messages, value)) return { language: value, unsupported: false };
+  return { language: DEFAULT_LANGUAGE, unsupported: true };
+}
+
+export function translate(language, key, values = {}) {
+  const template = messages[language]?.[key] ?? messages[DEFAULT_LANGUAGE][key] ?? key;
+  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, name) => String(values[name] ?? ''));
+}

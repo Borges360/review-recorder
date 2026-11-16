@@ -1,0 +1,66 @@
+{
+  "schema": "harness/project/v1",
+  "id": "review-recorder",
+  "name": "review-recorder",
+  "sourceRoot": "../workspace",
+  "sourceVersion": "0.3.0",
+  "kind": "node-workspace",
+  "manager": "npm",
+  "runtime": "node",
+  "worktreeOf": null,
+  "commands": {
+    "install": "npm ci",
+    "lint": "npm run lint",
+    "test": "npm test",
+    "build": "npm run build",
+    "dev": "npm run dev",
+    "compose": null,
+    "composeUp": null,
+    "composeDown": null
+  },
+  "gitflow": {
+    "strategy": "gitflow",
+    "main": "main",
+    "develop": "develop",
+    "featurePrefix": "feature/",
+    "featurePrefixes": [
+      "feature/",
+      "codex/"
+    ],
+    "releasePrefix": "release/",
+    "hotfixPrefix": "hotfix/",
+    "allowDirectPushToMain": false,
+    "publishRemote": "origin",
+    "protection": {
+      "requirePullRequest": true,
+      "allowForcePush": false,
+      "allowDeletion": false,
+      "enforceAdmins": false
+    }
+  },
+  "memory": {
+    "workspace": "homelab",
+    "server": "https://memory.lab/mcp",
+    "tokenEnv": "AI_MEMORY_TOKEN",
+    "project": "review-recorder"
+  },
+  "designSystem": {
+    "id": "inteiro",
+    "root": "../IDS",
+    "package": "@inteiro/design-system",
+    "cli": "node --experimental-strip-types ../IDS/packages/cli/src/cli.ts",
+    "mcp": "node --experimental-strip-types ../IDS/packages/mcp/src/server.ts",
+    "role": "consumer"
+  },
+  "guardrails": [],
+  "pipelines": [
+    {
+      "platform": "jenkins",
+      "job": "review-recorder-dev",
+      "sourceProject": "jenkies",
+      "file": "pipelines/deploy-review-recorder-dev.Jenkinsfile",
+      "purpose": "lab-validation-deploy"
+    }
+  ],
+  "memoryScopeVerified": false
+}

@@ -19,7 +19,8 @@
     "recover-transcript": "npm run recover-transcript --workspace=server",
     "start": "npm run start --workspace=server",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "node scripts/patch-inteiro-bin.mjs"
   },
   "engines": {
     "node": ">=24.0.0"
@@ -33,9 +34,9 @@
     "typescript-eslint": "^8.33.1"
   },
   "dependencies": {
-    "@inteiro/agent-core": "file:../IDS/artifacts/inteiro-agent-core-1.0.0.tgz",
-    "@inteiro/cli": "file:../IDS/artifacts/inteiro-cli-1.0.0.tgz",
-    "@inteiro/design-system": "file:../IDS/artifacts/inteiro-design-system-1.0.0.tgz",
-    "@inteiro/tokens": "file:../IDS/artifacts/inteiro-tokens-1.0.0.tgz"
+    "@inteiro/agent-core": "file:vendor/inteiro/inteiro-agent-core-1.0.0.tgz",
+    "@inteiro/cli": "file:vendor/inteiro/inteiro-cli-1.0.0.tgz",
+    "@inteiro/design-system": "file:vendor/inteiro/inteiro-design-system-1.0.0.tgz",
+    "@inteiro/tokens": "file:vendor/inteiro/inteiro-tokens-1.0.0.tgz"
   }
 }

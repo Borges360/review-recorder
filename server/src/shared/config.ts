@@ -4,6 +4,7 @@ import { join, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import type { AppConfig } from '../shared/types.js';
+import { resolveTranscriptionConfig } from '../voice/transcriptionProvider.js';
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -32,6 +33,7 @@ export function loadConfig(): AppConfig {
     ? resolveProjectPath(process.env.BROWSER_PROFILE_DIR)
     : join(homedir(), '.ui-review', 'browser-profile');
   const openaiApiKey = process.env.OPENAI_API_KEY ?? null;
+  const transcription = resolveTranscriptionConfig(process.env);
   const diagnosticTrace = process.env.DIAGNOSTIC_TRACE === 'true';
   const useFakeTranscriber = process.env.USE_FAKE_TRANSCRIBER === 'true';
   const mockBrowser = process.env.MOCK_BROWSER === 'true';
@@ -66,6 +68,7 @@ export function loadConfig(): AppConfig {
     dataDir,
     browserProfileDir,
     openaiApiKey,
+    transcription,
     diagnosticTrace,
     useFakeTranscriber,
     mockBrowser,

@@ -80,6 +80,12 @@ export async function buildApp() {
       return reply.type('text/css; charset=utf-8').send(readFileSync(filePath));
     });
   }
+  for (const name of ['fonts.css', 'recursive-latin.woff2']) {
+    app.get('/assets/inteiro/recursive/' + name, async (_req, reply) => {
+      const contentType = name.endsWith('.woff2') ? 'font/woff2' : 'text/css; charset=utf-8';
+      return reply.type(contentType).send(readFileSync(join(inteiroRoot, 'assets/recursive', name)));
+    });
+  }
   app.get('/', async (_req, reply) => {
     return reply.type('text/html; charset=utf-8').send(readFileSync(historyPath, 'utf8'));
   });

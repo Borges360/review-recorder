@@ -19,6 +19,7 @@ import { CorrelationEngine, TranscriptAssembler, newId } from '../timeline/Corre
 import type { ClickSplitPoint, ScreenSnapshot } from '../timeline/SpeechClickSplitter.js';
 import { SessionCompiler } from '../export/SessionCompiler.js';
 import { transcribeOfflineDetailed, transcribeWebmChunk } from '../voice/OfflineTranscriber.js';
+import { getTranscriptionConfig } from '../voice/transcriptionProvider.js';
 import { asRawElement, clickablesToSnapshot, fingerprintClickables, limitClickables, toElementIdentity } from '../capture/elementIdentity.js';
 import { fakeChunkSegments, shiftChunkSegments } from '../capture/chunkTiming.js';
 import { loadClientIds, rememberClientId } from '../capture/clientIds.js';
@@ -271,13 +272,18 @@ export class SessionManager {
       wallElapsedMs = active.maxClientWallMs > 0 ? active.maxClientWallMs : wallElapsedMs;
     }
     const stoppedAt = new Date().toISOString();
+    const transcription = getTranscriptionConfig(this.config);
 
-    if (this.config.openaiApiKey && existsSync(active.artifacts.getAudioPath())) {
+    if (transcription.apiKey && existsSync(active.artifacts.getAudioPath())) {
       const { readFileSync } = await import('node:fs');
       const transcriptPath = active.artifacts.getTranscriptPath();
       const hasTranscripts = existsSync(transcriptPath) && readFileSync(transcriptPath, 'utf8').trim().length > 0;
       if (!hasTranscripts) {
-        const offline = await transcribeOfflineDetailed(active.artifacts.getAudioPath(), this.config.openaiApiKey);
+        const offline = await transcribeOfflineDetailed(
+          active.artifacts.getAudioPath(),
+          transcription.apiKey,
+          transcription,
+        );
         if (offline.text?.trim()) {
           const segment = {
             id: newId('speech-offline'),
@@ -406,14 +412,20 @@ export class SessionManager {
     rememberClientId(active.artifacts.getSessionDir(), active.acceptedClientIds, clientId);
 
     const safeDuration = durationMs > 0 ? durationMs : 5000;
+    const transcription = getTranscriptionConfig(this.config);
     let relative = fakeChunkSegments(safeDuration);
     let error: string | undefined;
     if (!this.config.useFakeTranscriber) {
-      if (!this.config.openaiApiKey) {
+      if (!transcription.apiKey) {
         error = 'no_api_key';
         relative = [];
       } else {
-        const result = await transcribeWebmChunk(bytes, this.config.openaiApiKey, safeDuration);
+        const result = await transcribeWebmChunk(
+          bytes,
+          transcription.apiKey,
+          safeDuration,
+          transcription,
+        );
         relative = result.segments;
         error = result.error;
       }

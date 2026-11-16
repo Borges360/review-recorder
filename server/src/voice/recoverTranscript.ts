@@ -7,6 +7,7 @@ import { SessionCompiler } from '../export/SessionCompiler.js';
 import { EVENT_TYPES } from '../shared/events.js';
 import { newId } from '../timeline/CorrelationEngine.js';
 import { transcribeOfflineDetailed } from './OfflineTranscriber.js';
+import { getTranscriptionConfig } from './transcriptionProvider.js';
 
 export interface RecoverTranscriptResult {
   sessionId: string;
@@ -23,12 +24,14 @@ export async function recoverSessionTranscript(
   repo: SessionRepository,
   options: { force?: boolean } = {},
 ): Promise<RecoverTranscriptResult> {
+  const transcription = getTranscriptionConfig(config);
   const session = repo.getSession(sessionId);
   if (!session?.outputDir) {
     throw new Error('Session not found or has no output directory');
   }
-  if (!config.openaiApiKey) {
-    throw new Error('OPENAI_API_KEY is required for offline transcription recovery');
+  if (!transcription.apiKey) {
+    const requiredKey = transcription.provider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY';
+    throw new Error(`${requiredKey} is required for offline transcription recovery`);
   }
 
   const outputDir = resolveSessionOutputDir(config.sessionsDir, session.outputDir);
@@ -57,12 +60,12 @@ export async function recoverSessionTranscript(
     };
   }
 
-  const transcription = await transcribeOfflineDetailed(audioPath, config.openaiApiKey);
-  if (!transcription.text?.trim()) {
-    throw new Error(transcription.error ?? 'Offline transcription returned empty text');
+  const result = await transcribeOfflineDetailed(audioPath, transcription.apiKey, transcription);
+  if (!result.text?.trim()) {
+    throw new Error(result.error ?? 'Offline transcription returned empty text');
   }
 
-  const text = transcription.text.trim();
+  const text = result.text.trim();
   const activeElapsedMs = session.activeElapsedMs ?? 0;
   const segment = {
     id: newId('speech-offline'),
@@ -125,7 +128,7 @@ export async function recoverSessionTranscript(
     sessionId,
     outputDir,
     textLength: text.length,
-    chunksProcessed: transcription.chunksProcessed,
+    chunksProcessed: result.chunksProcessed,
     timelineEntries: review.timeline.length,
     skipped: false,
   };
