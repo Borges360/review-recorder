@@ -48,6 +48,34 @@ export default tseslint.config(
     },
   },
   {
+    // Scripts de navegador escritos à mão do app de demonstração usado nos E2E.
+    files: ['fixtures/demo-app/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        document: 'readonly',
+        window: 'readonly',
+        location: 'readonly',
+        history: 'readonly',
+        URLSearchParams: 'readonly',
+        setInterval: 'readonly',
+      },
+    },
+  },
+  {
+    // AudioWorklet roda no AudioWorkletGlobalScope, não no escopo de window.
+    files: ['ui/public/pcm-processor.js'],
+    languageOptions: {
+      globals: {
+        AudioWorkletProcessor: 'readonly',
+        registerProcessor: 'readonly',
+        sampleRate: 'readonly',
+        currentFrame: 'readonly',
+        currentTime: 'readonly',
+      },
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
