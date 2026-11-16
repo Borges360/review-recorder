@@ -1,5 +1,5 @@
 import { buildApp } from '../../src/index.js';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -27,6 +27,7 @@ afterAll(() => {
   restore('BROWSER_PROFILE_DIR', previous.profile);
   restore('USE_FAKE_TRANSCRIBER', previous.fake);
   restore('API_TOKEN', previous.token);
+  rmSync(root, { recursive: true, force: true });
 });
 
 function restore(key: string, value: string | undefined) {

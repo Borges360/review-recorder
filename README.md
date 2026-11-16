@@ -9,7 +9,7 @@ Ferramenta local para revisão de aplicações web com navegação real, coment�
 - Node.js >= 24
 - Chromium (instalado via Playwright)
 - Microfone
-- Chave da OpenAI (`OPENAI_API_KEY`)
+- Chave da OpenAI (`OPENAI_API_KEY`); necessária para o Realtime
 
 ## Instalação
 
@@ -19,6 +19,11 @@ npx playwright install chromium
 cp .env.example .env
 # Edite .env com sua OPENAI_API_KEY
 ```
+
+O Realtime continua usando a OpenAI. A transcrição HTTP usa OpenAI por padrão; para
+selecionar OpenRouter, configure `TRANSCRIPTION_PROVIDER=openrouter` e uma chave
+OpenRouter limitada ao projeto e ambiente. A troca preserva o modelo
+`openai/gpt-4o-transcribe`.
 
 ## Desenvolvimento
 

@@ -1,31 +1,116 @@
 <!doctype html>
-<html lang="pt-BR" class="in-root" data-in-theme="dark" data-in-density="focus">
+<html lang="en" class="in-root" data-in-theme="dark" data-in-density="focus">
   <head>
     <meta charset="utf-8" />
-    <title>Configurar API</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Review Recorder settings</title>
     <link rel="stylesheet" href="vendor/inteiro-tokens.css" />
     <link rel="stylesheet" href="vendor/inteiro-components.css" />
     <link rel="stylesheet" href="vendor/recursive/fonts.css" />
     <style>
-      body { max-inline-size: 520px; margin: 32px auto; padding-inline: 16px; }
-      .in-field { margin-bottom: 12px; }
-      .in-input { width: 100%; box-sizing: border-box; }
-      .actions { display: flex; gap: 8px; }
+      body {
+        box-sizing: border-box;
+        max-inline-size: 552px;
+        margin: 24px auto;
+        padding-inline: 16px;
+      }
+      .in-field {
+        display: block;
+        margin-block: 16px;
+      }
+      .in-input {
+        box-sizing: border-box;
+        inline-size: 100%;
+        min-inline-size: 0;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-block-start: 16px;
+      }
+      .actions > button {
+        flex: 1 1 auto;
+        min-inline-size: 96px;
+      }
+      #result {
+        min-block-size: 1.5em;
+      }
+      [hidden] {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
-    <h1 class="in-title">API do homelab</h1>
-    <label class="in-field">URL
-      <input class="in-input" id="base" placeholder="https://review.luizfelipeborges.dev" />
-    </label>
-    <label class="in-field">Token
-      <input class="in-input" id="token" type="password" />
-    </label>
-    <div class="actions">
-      <button id="save" class="in-button in-button--primary" type="button">Salvar</button>
-      <button id="test" class="in-button in-button--secondary" type="button">Testar</button>
-    </div>
-    <p id="result" class="in-muted"></p>
+    <main aria-labelledby="page-title">
+      <h1 id="page-title" class="in-title" data-i18n="optionsTitle">Review Recorder settings</h1>
+      <label class="in-field" for="language"
+        ><span data-i18n="languageLabel">Language</span>
+        <select class="in-input" id="language" name="uiLanguage">
+          <option value="en">English</option>
+          <option value="pt-BR">Português (Brasil)</option>
+        </select>
+      </label>
+      <p id="settings-help" class="in-muted" data-i18n="settingsHelp">
+        API settings stay in a draft until you choose Save.
+      </p>
+      <label class="in-field" for="base"
+        ><span data-i18n="apiUrlLabel">API URL</span>
+        <input
+          class="in-input"
+          id="base"
+          name="apiBaseUrl"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          spellcheck="false"
+          aria-describedby="settings-help"
+          placeholder="https://review.luizfelipeborges.dev"
+        />
+      </label>
+      <label class="in-field" for="token"
+        ><span data-i18n="tokenLabel">Access token</span>
+        <input
+          class="in-input"
+          id="token"
+          name="apiToken"
+          type="password"
+          autocomplete="off"
+          aria-describedby="settings-help"
+        />
+      </label>
+      <div
+        class="actions"
+        role="group"
+        aria-label="Settings actions"
+        data-i18n-aria-label="settingsActions"
+      >
+        <button
+          id="discard"
+          class="in-button in-button--secondary"
+          type="button"
+          data-i18n="discard"
+        >
+          Discard
+        </button>
+        <button id="test" class="in-button in-button--secondary" type="button" data-i18n="testApi">
+          Test API
+        </button>
+        <button
+          id="cancel-test"
+          class="in-button in-button--ghost"
+          type="button"
+          hidden
+          data-i18n="cancelTest"
+        >
+          Cancel test
+        </button>
+        <button id="save" class="in-button in-button--primary" type="button" data-i18n="save">
+          Save
+        </button>
+      </div>
+      <p id="result" class="in-muted" role="status" aria-live="polite" aria-atomic="true"></p>
+    </main>
     <script src="options.js"></script>
   </body>
 </html>

@@ -130,6 +130,13 @@ export interface S3Config {
   region: string;
 }
 
+export interface TranscriptionConfig {
+  provider: 'openai' | 'openrouter';
+  apiKey: string | null;
+  baseUrl: string;
+  model: string;
+}
+
 export interface AppConfig {
   port: number;
   host: string;
@@ -138,6 +145,7 @@ export interface AppConfig {
   dataDir: string;
   browserProfileDir: string;
   openaiApiKey: string | null;
+  transcription: TranscriptionConfig;
   diagnosticTrace: boolean;
   useFakeTranscriber: boolean;
   mockBrowser: boolean;
