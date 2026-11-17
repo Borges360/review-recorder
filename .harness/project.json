@@ -62,5 +62,5 @@
       "purpose": "lab-validation-deploy"
     }
   ],
-  "memoryScopeVerified": false
+  "memoryScopeVerified": true
 }
