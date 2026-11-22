@@ -18,7 +18,7 @@
 ```bash
 npm install
 npx playwright install chromium
-cp .env.example .env          # configure OPENAI_API_KEY
+cp .env.example .env          # configure OPENAI_API_KEY e TRANSCRIPTION_PROVIDER
 
 npm run dev:server              # backend :3000
 npm run dev:ui                  # control UI :5179

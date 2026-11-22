@@ -7,7 +7,7 @@ import { SessionCompiler } from '../export/SessionCompiler.js';
 import { EVENT_TYPES } from '../shared/events.js';
 import { newId } from '../timeline/CorrelationEngine.js';
 import { transcribeOfflineDetailed } from './OfflineTranscriber.js';
-import { getTranscriptionConfig } from './transcriptionProvider.js';
+import { getTranscriptionConfig, isTranscriptionUsable } from './transcriptionProvider.js';
 
 export interface RecoverTranscriptResult {
   sessionId: string;
@@ -29,9 +29,8 @@ export async function recoverSessionTranscript(
   if (!session?.outputDir) {
     throw new Error('Session not found or has no output directory');
   }
-  if (!transcription.apiKey) {
-    const requiredKey = transcription.provider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY';
-    throw new Error(`${requiredKey} is required for offline transcription recovery`);
+  if (!isTranscriptionUsable(transcription)) {
+    throw new Error(`Offline transcription recovery unavailable: ${transcription.error ?? 'transcription not configured'}`);
   }
 
   const outputDir = resolveSessionOutputDir(config.sessionsDir, session.outputDir);

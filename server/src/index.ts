@@ -17,6 +17,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export async function buildApp() {
   const config = loadConfig();
   const app = Fastify({ logger: true });
+  if (config.transcription.error && !config.useFakeTranscriber) {
+    // The server still boots; HTTP transcription stays unavailable until the configuration is fixed.
+    app.log.warn(`HTTP transcription unavailable: ${config.transcription.error}`);
+  }
 
   await app.register(cors, { origin: config.uiOrigin, credentials: true });
   await app.register(websocket);

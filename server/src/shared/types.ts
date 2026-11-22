@@ -130,11 +130,17 @@ export interface S3Config {
   region: string;
 }
 
+export type TranscriptionProviderName = 'openai' | 'openrouter';
+
+/** HTTP transcription (chunks, offline, recovery). Realtime always uses OpenAI and is not part of it. */
 export interface TranscriptionConfig {
-  provider: 'openai' | 'openrouter';
+  /** Null when TRANSCRIPTION_PROVIDER is missing or invalid. */
+  provider: TranscriptionProviderName | null;
   apiKey: string | null;
   baseUrl: string;
   model: string;
+  /** Named configuration error; transcription is unavailable while it is set. */
+  error: string | null;
 }
 
 export interface AppConfig {

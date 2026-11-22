@@ -19,7 +19,7 @@ import { CorrelationEngine, TranscriptAssembler, newId } from '../timeline/Corre
 import type { ClickSplitPoint, ScreenSnapshot } from '../timeline/SpeechClickSplitter.js';
 import { SessionCompiler } from '../export/SessionCompiler.js';
 import { transcribeOfflineDetailed, transcribeWebmChunk } from '../voice/OfflineTranscriber.js';
-import { getTranscriptionConfig } from '../voice/transcriptionProvider.js';
+import { getTranscriptionConfig, isTranscriptionUsable } from '../voice/transcriptionProvider.js';
 import { asRawElement, clickablesToSnapshot, fingerprintClickables, limitClickables, toElementIdentity } from '../capture/elementIdentity.js';
 import { fakeChunkSegments, shiftChunkSegments } from '../capture/chunkTiming.js';
 import { loadClientIds, rememberClientId } from '../capture/clientIds.js';
@@ -274,7 +274,7 @@ export class SessionManager {
     const stoppedAt = new Date().toISOString();
     const transcription = getTranscriptionConfig(this.config);
 
-    if (transcription.apiKey && existsSync(active.artifacts.getAudioPath())) {
+    if (isTranscriptionUsable(transcription) && !active.transcriptionQuotaError && existsSync(active.artifacts.getAudioPath())) {
       const { readFileSync } = await import('node:fs');
       const transcriptPath = active.artifacts.getTranscriptPath();
       const hasTranscripts = existsSync(transcriptPath) && readFileSync(transcriptPath, 'utf8').trim().length > 0;
@@ -302,6 +302,7 @@ export class SessionManager {
           appendFileSync(transcriptPath, JSON.stringify(segment) + '\n');
           this.emitEvent(active, EVENT_TYPES.TRANSCRIPT_FINAL, { segment, offlineFallback: true });
         } else if (offline.error) {
+          if (offline.quotaExhausted) active.transcriptionQuotaError = offline.error;
           this.emitEvent(active, EVENT_TYPES.RECORDER_ERROR, {
             error: `Offline transcription failed: ${offline.error}`,
             offlineFallback: true,
@@ -416,8 +417,12 @@ export class SessionManager {
     let relative = fakeChunkSegments(safeDuration);
     let error: string | undefined;
     if (!this.config.useFakeTranscriber) {
-      if (!transcription.apiKey) {
-        error = 'no_api_key';
+      if (!isTranscriptionUsable(transcription)) {
+        error = transcription.error ?? 'no_api_key';
+        relative = [];
+      } else if (active.transcriptionQuotaError) {
+        // Quota exhaustion is terminal for the session: no further calls, no provider switch.
+        error = active.transcriptionQuotaError;
         relative = [];
       } else {
         const result = await transcribeWebmChunk(
@@ -428,6 +433,7 @@ export class SessionManager {
         );
         relative = result.segments;
         error = result.error;
+        if (result.quotaExhausted && result.error) active.transcriptionQuotaError = result.error;
       }
     }
 
@@ -958,6 +964,8 @@ interface ActiveSession {
   evidenceRecords: EvidenceRecord[];
   lastSegment: TranscriptSegmentRecord | null;
   lastFingerprint: string | null;
+  /** Set after an OpenRouter budget error; HTTP transcription stays off for the rest of the session. */
+  transcriptionQuotaError?: string;
 }
 
 export interface ExtensionClientEvent {
