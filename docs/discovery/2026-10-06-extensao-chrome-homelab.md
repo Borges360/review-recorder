@@ -219,7 +219,7 @@ Esse mapa não está no Git. Os outros (`interview.luizfelipeborges.dev`, `minio
 
 Esteira nova `jenkies/pipelines/deploy-review-recorder-dev.Jenkinsfile`, no molde de `deploy-interview-dev.Jenkinsfile`: checkout do repo `review-recorder`, teste, buildkit para o registry interno, `kubectl set image` / scale. O código da aplicação não mora no repo jenkies.
 
-Secret (não commitar): `OPENAI_API_KEY`, `DATABASE_URL`, `S3_ENDPOINT=http://minio:9000`, `S3_BUCKET=review-recorder`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `API_TOKEN`.
+Secret (não commitar): `OPENAI_API_KEY`, `TRANSCRIPTION_PROVIDER` (`openai` | `openrouter`, obrigatório), `OPENROUTER_API_KEY` (só com `openrouter`), `DATABASE_URL`, `S3_ENDPOINT=http://minio:9000`, `S3_BUCKET=review-recorder`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `API_TOKEN`.
 
 ### Auth
 

@@ -11,9 +11,16 @@ alwaysApply: false
 
 | Modo | Uso |
 |------|-----|
-| OpenAI Realtime | Produção com `OPENAI_API_KEY` |
+| OpenAI Realtime | Ao vivo; sempre OpenAI com `OPENAI_API_KEY` (exceção fora do teto OpenRouter) |
 | `FakeTranscriber` | Testes unitários e E2E |
-| Offline | Quando API indisponível (config) |
+| HTTP (chunks/offline/recover) | `TRANSCRIPTION_PROVIDER` obrigatório: `openai` (`OPENAI_API_KEY`) ou `openrouter` (`OPENROUTER_API_KEY`) |
+
+## Contrato do provedor HTTP
+
+- Sem padrão nem fallback: seletor ausente/inválido ou chave ausente => erro `transcription_config_error: ...`, servidor sobe.
+- Nunca usar a chave de um provedor no outro nem trocar de provedor em erro.
+- Cota OpenRouter (402 sem `Retry-After`; 403 com `limit_source` de orçamento) => `openrouter_quota_exhausted`, terminal na sessão.
+- OpenRouter recebe `provider: {"allow_fallbacks": false}`.
 
 ## Pipeline
 

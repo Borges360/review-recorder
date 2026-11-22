@@ -3,7 +3,7 @@ import type { ExtensionClientEvent, SessionManager } from '../session/SessionMan
 import { SessionCompiler } from '../export/SessionCompiler.js';
 import type { AppConfig } from '../shared/types.js';
 import { resolveSessionOutputDir } from '../shared/config.js';
-import { getTranscriptionConfig } from '../voice/transcriptionProvider.js';
+import { getTranscriptionConfig, isTranscriptionUsable } from '../voice/transcriptionProvider.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -28,7 +28,9 @@ export async function registerRoutes(
 
   app.get('/config', async () => ({
     openaiConfigured: Boolean(config.openaiApiKey),
-    transcriptionConfigured: Boolean(getTranscriptionConfig(config).apiKey),
+    transcriptionConfigured: isTranscriptionUsable(getTranscriptionConfig(config)),
+    transcriptionProvider: getTranscriptionConfig(config).provider,
+    transcriptionError: getTranscriptionConfig(config).error,
   }));
 
   app.get<{ Querystring: { limit?: string } }>('/sessions', async (req) => {
