@@ -1,0 +1,51 @@
+---
+description: "Token efficiency: retrieve narrowly, edit minimally, answer concisely."
+alwaysApply: true
+---
+
+# Token Efficiency
+
+Optimize for minimal context, minimal edits, and high correctness.
+
+## Retrieval policy
+
+- Search before reading large files.
+- Use `rg`, grep, symbol search, explicit paths, and narrow globs before opening files.
+- Prefer reading only the relevant file section, function, class, route, or component block.
+- Do not scan broad directories without a clear reason.
+- Avoid broad reads of `docs/`, `server/test/`, `sessions/`, `node_modules/`, `dist/`, `coverage/`, and logs.
+- Do not re-read the same file in the same session unless it changed or the previous read was insufficient.
+
+## Escalation rule
+
+Start narrow. Escalate context only when needed.
+
+Escalate from search to file reading only if:
+- Search results identify a likely relevant file.
+- The task requires understanding implementation details.
+- The change touches session lifecycle, browser/HUD, timeline, voice, export, or WebSocket.
+- Tests fail and the failure requires deeper inspection.
+- The user explicitly asks for a broader review.
+
+## Editing policy
+
+- Prefer the smallest correct change.
+- Reuse existing project patterns before creating new abstractions.
+- Do not introduce new dependencies, folders, or documentation unless required.
+- Avoid speculative refactors outside the requested scope.
+
+## Response policy
+
+- Answer with conclusion first.
+- Keep responses short by default.
+- Include: what changed, files touched, validation performed, risks when relevant.
+
+## Validation policy
+
+- Prefer targeted validation over broad suites.
+- Run the smallest relevant test/lint command that proves the change.
+- Report validation status: passed, failed, not run (with reason).
+
+## Cost discipline
+
+- Do not invoke specialized skills, agents, or MCP tools unless they directly match the task.

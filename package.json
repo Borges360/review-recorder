@@ -1,11 +1,12 @@
 {
   "name": "review-recorder",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Voice UI Review Recorder — timeline semântica de revisões web",
   "workspaces": [
     "server",
-    "ui"
+    "ui",
+    "extension"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=server & npm run dev --workspace=ui",
@@ -15,9 +16,11 @@
     "test": "npm run test --workspace=server",
     "test:e2e": "npm run test:e2e --workspace=server",
     "compile": "npm run compile --workspace=server",
+    "recover-transcript": "npm run recover-transcript --workspace=server",
     "start": "npm run start --workspace=server",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "node scripts/patch-inteiro-bin.mjs"
   },
   "engines": {
     "node": ">=24.0.0"
@@ -29,5 +32,11 @@
     "eslint": "^9.28.0",
     "prettier": "^3.5.3",
     "typescript-eslint": "^8.33.1"
+  },
+  "dependencies": {
+    "@inteiro/agent-core": "file:vendor/inteiro/inteiro-agent-core-1.0.0.tgz",
+    "@inteiro/cli": "file:vendor/inteiro/inteiro-cli-1.0.0.tgz",
+    "@inteiro/design-system": "file:vendor/inteiro/inteiro-design-system-1.0.0.tgz",
+    "@inteiro/tokens": "file:vendor/inteiro/inteiro-tokens-1.0.0.tgz"
   }
 }

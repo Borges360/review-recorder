@@ -1,0 +1,44 @@
+---
+description: "Transcrição de voz, OpenAI Realtime e FakeTranscriber"
+globs:
+  - server/src/voice/**/*
+alwaysApply: false
+---
+
+# Voz e Transcrição
+
+## Modos
+
+| Modo | Uso |
+|------|-----|
+| OpenAI Realtime | Ao vivo; sempre OpenAI com `OPENAI_API_KEY` (exceção fora do teto OpenRouter) |
+| `FakeTranscriber` | Testes unitários e E2E |
+| HTTP (chunks/offline/recover) | `TRANSCRIPTION_PROVIDER` obrigatório: `openai` (`OPENAI_API_KEY`) ou `openrouter` (`OPENROUTER_API_KEY`) |
+
+## Contrato do provedor HTTP
+
+- Sem padrão nem fallback: seletor ausente/inválido ou chave ausente => erro `transcription_config_error: ...`, servidor sobe.
+- Nunca usar a chave de um provedor no outro nem trocar de provedor em erro.
+- Cota OpenRouter (402 sem `Retry-After`; 403 com `limit_source` de orçamento) => `openrouter_quota_exhausted`, terminal na sessão.
+- OpenRouter recebe `provider: {"allow_fallbacks": false}`.
+
+## Pipeline
+
+1. Áudio capturado durante sessão → `raw/audio.wav`
+2. Segmentos transcritos → `raw/transcript.jsonl`
+3. `CorrelationEngine` associa fala a tela/elemento ativo
+
+## Escopos de correlação
+
+- `scope=SCREEN` — comentário sem clique prévio (tela inteira)
+- `scope=ELEMENT` — após interação com elemento (`associationConfidence`)
+
+## Testes
+
+- Sempre usar `FakeTranscriber` em testes automatizados.
+- Não commitar chaves de API; documentar em `.env.example`.
+- Validar pause/resume: áudio para, `wallElapsed` vs `activeElapsed`.
+
+## Evidência durante fala
+
+Screenshot com `pendingEvidence` + `speechSegmentId` deve aparecer na timeline exportada.

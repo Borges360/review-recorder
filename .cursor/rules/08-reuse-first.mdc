@@ -1,0 +1,46 @@
+---
+description: "Reuse-first: evitar duplicação em server, UI, browser, testes."
+alwaysApply: true
+---
+
+# Reuse First (review-recorder)
+
+Antes de criar qualquer artefato novo, procurar e reutilizar o que já existe.
+
+## Regra obrigatória
+
+1. Inventariar candidatos a reuso no escopo afetado.
+2. Reutilizar implementações existentes sempre que atenderem ao requisito.
+3. Se não reutilizar, justificar de forma objetiva.
+4. Evitar duplicação de regra de negócio, evento de timeline, componente UI e cenário de teste.
+
+## Backend (Fastify / server/)
+
+- Reusar módulos em `server/src/` antes de criar pasta nova.
+- Centralizar regra de negócio em service/engine (não duplicar em route e browser script).
+- Reusar tipos em `shared/types.ts` e eventos em `shared/events.ts`.
+- Imports ESM com extensão `.js` — seguir padrão do arquivo vizinho.
+
+## Browser (Playwright / HUD)
+
+- Reusar helpers em `server/src/browser/` para screenshots, interações e injeção de HUD.
+- Não duplicar lógica de captura de estado entre `ScreenStateEngine` e exporters.
+- Reusar seletores e padrões de evento in-page já estabelecidos.
+
+## Frontend (Control UI)
+
+- Reusar `ui/src/api.ts` para chamadas HTTP — não hardcodar URLs.
+- Evitar copiar bloco JSX entre telas; extrair componente ou hook quando repetido.
+- Estilos em `styles.css` — manter consistência visual simples.
+
+## Testes
+
+- Reusar `FakeTranscriber`, fixtures e helpers em `server/test/`.
+- Evitar spec duplicada para mesmo comportamento; expandir cobertura da spec atual.
+- Bugfix deve adicionar regressão mínima na camada correta (unit vs e2e).
+
+## Saída mínima esperada em tarefas relevantes
+
+- `Reuso aplicado:` lista curta do que foi reaproveitado.
+- `Duplicações evitadas:` itens principais.
+- `Não reutilizado (com justificativa):` somente quando aplicável.

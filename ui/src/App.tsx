@@ -1,110 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, eventsWsUrl, audioWsUrl, formatTimer, type SessionRecord, type TimelineEntry } from './api';
+import { api, eventsWsUrl, audioWsUrl, formatTimer, type SessionRecord } from './api';
 import { AudioCapture } from './audio/AudioCapture';
-
-type View = 'home' | 'recording' | 'completed' | 'detail';
+import { SessionDetailPage } from './SessionDetailPage';
+import { navigate, sessionPath, useSessionRoute } from './routing';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function formatTimelineEntry(entry: TimelineEntry): string {
-  switch (entry.type) {
-    case 'session':
-      return `Início — ${entry.name as string}`;
-    case 'pause':
-      return 'Pausa';
-    case 'resume':
-      return 'Retomada';
-    case 'screen': {
-      const screen = entry.screen as { title?: string };
-      return `Tela — ${screen?.title ?? 'desconhecida'}`;
-    }
-    case 'action':
-      return entry.action as string;
-    case 'observation': {
-      const speech = entry.speech as { text?: string };
-      return `🎙 ${speech?.text ?? ''}`;
-    }
-    case 'evidence':
-      return 'Screenshot capturado';
-    default:
-      return entry.type;
-  }
-}
-
-function SessionDetailView({
-  session,
-  outputDir,
-  timeline,
-  reviewMarkdown,
-  onBack,
-}: {
-  session: SessionRecord;
-  outputDir: string | null;
-  timeline: TimelineEntry[];
-  reviewMarkdown: string | null;
-  onBack: () => void;
-}) {
-  const observations = timeline.filter((e) => e.type === 'observation');
-
-  return (
-    <div className="app">
-      <button className="btn btn-secondary btn-sm back-btn" onClick={onBack}>
-        ← Voltar
-      </button>
-      <h1>{session.name}</h1>
-      <p className="session-meta">
-        {session.stoppedAt ? `Finalizada em ${formatDate(session.stoppedAt)}` : formatDate(session.createdAt)}
-        {' · '}
-        {Math.round((session.activeElapsedMs ?? 0) / 1000)}s ativos
-      </p>
-
-      {outputDir && (
-        <p className="output-path">
-          Artefatos em: <code>{outputDir}</code>
-        </p>
-      )}
-
-      {observations.length > 0 && (
-        <div className="detail-section">
-          <h2>Observações por voz ({observations.length})</h2>
-          {observations.map((entry) => (
-            <div key={entry.id} className="timeline-entry observation">
-              <span className="timeline-offset">{entry.offset}</span>
-              <p>{formatTimelineEntry(entry)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {timeline.length > 0 && (
-        <div className="detail-section">
-          <h2>Timeline ({timeline.length} eventos)</h2>
-          <div className="timeline-list">
-            {timeline.map((entry) => (
-              <div key={entry.id} className={`timeline-entry ${entry.type}`}>
-                <span className="timeline-offset">{entry.offset}</span>
-                <span>{formatTimelineEntry(entry)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {reviewMarkdown && (
-        <div className="detail-section">
-          <h2>REVIEW.md</h2>
-          <pre className="review-preview">{reviewMarkdown}</pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function App() {
-  const [view, setView] = useState<View>('home');
+  const routeSessionId = useSessionRoute();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [initialUrl, setInitialUrl] = useState('http://127.0.0.1:3000/demo/');
@@ -115,13 +21,11 @@ export default function App() {
   const [wallMs, setWallMs] = useState(0);
   const [currentUrl, setCurrentUrl] = useState('');
   const [alert, setAlert] = useState<string | null>(null);
+  const [alertCritical, setAlertCritical] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
   const [openaiConfigured, setOpenaiConfigured] = useState(true);
-  const [completedOutput, setCompletedOutput] = useState<string | null>(null);
-  const [reviewMarkdown, setReviewMarkdown] = useState<string | null>(null);
-  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
-  const [loadingSession, setLoadingSession] = useState(false);
   const [browserClosed, setBrowserClosed] = useState(false);
+  const [recording, setRecording] = useState(false);
 
   const audioRef = useRef<AudioCapture | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -130,6 +34,24 @@ export default function App() {
   const stoppingRef = useRef(false);
   const activeMsRef = useRef(0);
   const wallMsRef = useRef(0);
+  const transcriptReceivedRef = useRef(false);
+  const transcriptionHealthTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTranscriptionAlert = useCallback((message: string, critical = true) => {
+    setAlert(message);
+    setAlertCritical(critical);
+  }, []);
+
+  const parseRecorderError = (raw: unknown): string => {
+    if (typeof raw !== 'string') return 'Erro na transcrição. O áudio continua sendo gravado localmente.';
+    try {
+      const parsed = JSON.parse(raw) as { message?: string };
+      if (parsed.message) return `Transcrição indisponível: ${parsed.message}. O áudio continua sendo gravado.`;
+    } catch {
+      /* plain string */
+    }
+    return `Transcrição indisponível: ${raw}. O áudio continua sendo gravado.`;
+  };
 
   const loadSessions = useCallback(async () => {
     try {
@@ -157,18 +79,9 @@ export default function App() {
         sessionRecord ?? (await api.listSessions()).find((s) => s.id === sessionId);
       if (!stopped) return;
       setCurrent(stopped);
-      try {
-        const exp = await api.exportSession(stopped.id);
-        setCompletedOutput(exp.outputDir);
-        setReviewMarkdown(exp.reviewMd ?? null);
-        setTimeline(exp.reviewJson?.timeline ?? []);
-      } catch {
-        setCompletedOutput(stopped.outputDir);
-        setReviewMarkdown(null);
-        setTimeline([]);
-      }
-      setView('detail');
+      setRecording(false);
       void loadSessions();
+      navigate(sessionPath(sessionId));
     } catch (e) {
       stoppingRef.current = false;
       setAlert(String(e));
@@ -198,19 +111,39 @@ export default function App() {
         }
         switch (event.type) {
           case 'TRANSCRIPT_PARTIAL':
+            transcriptReceivedRef.current = true;
             setPartialTranscript((event.payload.text as string) ?? '');
+            if (alertCritical) {
+              setAlert(null);
+              setAlertCritical(false);
+            }
             break;
           case 'TRANSCRIPT_FINAL':
+            transcriptReceivedRef.current = true;
             setPartialTranscript((event.payload.segment as { text: string })?.text ?? '');
+            if (alertCritical) {
+              setAlert(null);
+              setAlertCritical(false);
+            }
             break;
           case 'NAVIGATION':
             setCurrentUrl((event.payload.url as string) ?? '');
             break;
+          case 'RECORDER_ERROR':
+            showTranscriptionAlert(parseRecorderError(event.payload.error), true);
+            break;
           case 'TRANSCRIPTION_OFFLINE':
-            setAlert('Transcrição temporariamente offline. O áudio está sendo preservado localmente.');
+            showTranscriptionAlert(
+              (event.payload.reason as string) === 'no_api_key'
+                ? 'Transcrição offline: OPENAI_API_KEY não configurada. O áudio está sendo gravado localmente.'
+                : 'Transcrição offline. O áudio está sendo gravado localmente, mas o texto não está sendo gerado.',
+              true,
+            );
             break;
           case 'TRANSCRIPTION_ONLINE':
-            setAlert(null);
+            if (!alertCritical) {
+              setAlert(null);
+            }
             break;
           case 'MICROPHONE_DISCONNECTED':
             setAlert('Microfone desconectado. A navegação continua sendo registrada.');
@@ -230,11 +163,12 @@ export default function App() {
         /* ignore */
       }
     };
-  }, [finalizeUi]);
+  }, [finalizeUi, alertCritical, showTranscriptionAlert]);
 
   const handleStart = async () => {
     if (!name.trim()) return;
     setAlert(null);
+    setAlertCritical(false);
 
     audioRef.current?.stop();
     const capture = new AudioCapture(setMicLevel, (msg) => setAlert(msg));
@@ -249,7 +183,7 @@ export default function App() {
       );
       const started = await api.startSession(session.id);
       setCurrent(started);
-      setView('recording');
+      setRecording(true);
       pausedRef.current = false;
       activeMsRef.current = 0;
       wallMsRef.current = 0;
@@ -258,6 +192,7 @@ export default function App() {
       setPartialTranscript('');
       setBrowserClosed(false);
       stoppingRef.current = false;
+      transcriptReceivedRef.current = false;
       connectEvents(session.id);
       try {
         await capture.start(audioWsUrl(session.id));
@@ -271,6 +206,18 @@ export default function App() {
           setWallMs((m) => m + 1000);
         }
       }, 1000);
+
+      if (transcriptionHealthTimerRef.current) {
+        clearTimeout(transcriptionHealthTimerRef.current);
+      }
+      transcriptionHealthTimerRef.current = setTimeout(() => {
+        if (!transcriptReceivedRef.current && openaiConfigured && !pausedRef.current) {
+          showTranscriptionAlert(
+            'Nenhuma transcrição recebida nos primeiros 15 segundos. Verifique microfone e OPENAI_API_KEY. O áudio continua sendo gravado.',
+            true,
+          );
+        }
+      }, 15_000);
     } catch (e) {
       setAlert(String(e));
     }
@@ -332,35 +279,18 @@ export default function App() {
     }
   };
 
-  const handleViewSession = async (session: SessionRecord) => {
+  const handleViewSession = (session: SessionRecord) => {
     if (session.status !== 'COMPLETED' || !session.outputDir) return;
     setAlert(null);
-    setLoadingSession(true);
-    setCurrent(session);
-    try {
-      const exp = await api.exportSession(session.id);
-      setCompletedOutput(exp.outputDir);
-      setReviewMarkdown(exp.reviewMd ?? null);
-      setTimeline(exp.reviewJson?.timeline ?? (await api.getTimeline(session.id)).timeline);
-      setView('detail');
-    } catch (e) {
-      setAlert(String(e));
-    } finally {
-      setLoadingSession(false);
-    }
+    navigate(sessionPath(session.id));
   };
 
   const handleFinalizeRecoverable = async (session: SessionRecord) => {
     setAlert(null);
     try {
       const finalized = await api.finalizeSession(session.id);
-      setCurrent(finalized);
-      const exp = await api.exportSession(finalized.id);
-      setCompletedOutput(exp.outputDir);
-      setReviewMarkdown(exp.reviewMd ?? null);
-      setTimeline(exp.reviewJson?.timeline ?? []);
-      setView('detail');
       void loadSessions();
+      navigate(sessionPath(finalized.id));
     } catch (e) {
       setAlert(String(e));
     }
@@ -369,14 +299,18 @@ export default function App() {
   const recoverableSessions = sessions.filter((s) => s.status === 'RECOVERABLE');
   const recentSessions = sessions.filter((s) => s.status !== 'RECOVERABLE');
 
-  if (view === 'recording' && current) {
+  if (routeSessionId && !recording) {
+    return <SessionDetailPage sessionId={routeSessionId} />;
+  }
+
+  if (recording && current) {
     const isPaused = current.status === 'PAUSED' || pausedRef.current;
     return (
       <div className="app">
         <div className="recording-header">
           <span className={`recording-dot ${isPaused ? 'paused' : ''}`} />
           <strong>{isPaused ? 'PAUSADO' : 'GRAVANDO'}</strong>
-          <span style={{ marginLeft: 'auto', color: '#9aa0a6' }}>{current.name}</span>
+          <span className="in-muted" style={{ marginLeft: 'auto' }}>{current.name}</span>
         </div>
 
         <div className="timers">
@@ -397,7 +331,7 @@ export default function App() {
           </div>
         </div>
 
-        {alert && <div className="alert">{alert}</div>}
+        {alert && <div className={`alert${alertCritical ? ' alert-critical' : ''}`}>{alert}</div>}
         {!openaiConfigured && !alert && (
           <div className="alert">OPENAI_API_KEY não configurada. Áudio será gravado localmente.</div>
         )}
@@ -407,19 +341,19 @@ export default function App() {
         </div>
 
         <div className="controls">
-          <button className="btn btn-secondary" onClick={() => void handlePause()}>
+          <button className="in-button in-button--secondary" onClick={() => void handlePause()}>
             {isPaused ? 'Resume' : 'Pause'}
           </button>
           <button
-            className={`btn btn-secondary${browserClosed ? ' btn-highlight' : ''}`}
+            className={`in-button in-button--secondary${browserClosed ? ' is-highlight' : ''}`}
             onClick={() => void handleReopenBrowser()}
           >
             Abrir browser
           </button>
-          <button className="btn btn-secondary" onClick={() => void handleScreenshot()}>
+          <button className="in-button in-button--secondary" onClick={() => void handleScreenshot()}>
             Screenshot
           </button>
-          <button className="btn btn-danger" onClick={() => void handleStop()}>
+          <button className="in-button in-button--danger" onClick={() => void handleStop()}>
             Finalizar
           </button>
         </div>
@@ -437,23 +371,6 @@ export default function App() {
     );
   }
 
-  if ((view === 'completed' || view === 'detail') && current) {
-    return (
-      <SessionDetailView
-        session={current}
-        outputDir={completedOutput ?? current.outputDir}
-        timeline={timeline}
-        reviewMarkdown={reviewMarkdown}
-        onBack={() => {
-          setView('home');
-          setCurrent(null);
-          setTimeline([]);
-          setReviewMarkdown(null);
-        }}
-      />
-    );
-  }
-
   return (
     <div className="app">
       <h1>UI Review</h1>
@@ -461,6 +378,7 @@ export default function App() {
       <label htmlFor="name">Nome da sessão</label>
       <input
         id="name"
+        className="in-input"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Gerar contrato"
@@ -469,6 +387,7 @@ export default function App() {
       <label htmlFor="description">Descrição (opcional)</label>
       <input
         id="description"
+        className="in-input"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Revisão do fluxo de geração de contrato"
@@ -477,15 +396,15 @@ export default function App() {
       <label htmlFor="url">URL inicial</label>
       <input
         id="url"
+        className="in-input"
         value={initialUrl}
         onChange={(e) => setInitialUrl(e.target.value)}
         placeholder="https://sistema/..."
       />
 
       {alert && <div className="alert">{alert}</div>}
-      {loadingSession && <div className="alert">Carregando sessão...</div>}
 
-      <button className="btn btn-primary" onClick={() => void handleStart()} disabled={!name.trim() || loadingSession}>
+      <button className="in-button in-button--primary is-block" onClick={() => void handleStart()} disabled={!name.trim()}>
         Iniciar sessão
       </button>
 
@@ -499,7 +418,7 @@ export default function App() {
                 <span className="recoverable-badge">RECOVERABLE</span>
               </div>
               <div className="recoverable-actions">
-                <button className="btn btn-secondary btn-sm" onClick={() => void handleFinalizeRecoverable(s)}>
+                <button className="in-button in-button--secondary in-button--sm" onClick={() => void handleFinalizeRecoverable(s)}>
                   Compilar e finalizar
                 </button>
               </div>
@@ -515,18 +434,18 @@ export default function App() {
             <div
               key={s.id}
               className={`session-item${s.status === 'COMPLETED' ? ' clickable' : ''}`}
-              onClick={() => s.status === 'COMPLETED' && void handleViewSession(s)}
+              onClick={() => s.status === 'COMPLETED' && handleViewSession(s)}
               role={s.status === 'COMPLETED' ? 'button' : undefined}
               tabIndex={s.status === 'COMPLETED' ? 0 : undefined}
               onKeyDown={(e) => {
                 if (s.status === 'COMPLETED' && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault();
-                  void handleViewSession(s);
+                  handleViewSession(s);
                 }
               }}
             >
               <span>{s.name}</span>
-              <span style={{ color: '#9aa0a6' }}>
+              <span className="in-muted">
                 {s.status === 'COMPLETED' ? 'Ver resultado →' : formatDate(s.createdAt)}
               </span>
             </div>

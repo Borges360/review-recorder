@@ -1,0 +1,44 @@
+---
+description: "Playwright, HUD in-page, screenshots e captura de interações"
+globs:
+  - server/src/browser/**/*
+  - server/test/e2e/**/*
+alwaysApply: false
+---
+
+# Playwright e Browser Automation
+
+## Responsabilidades
+
+- Abrir Chromium controlado pelo `SessionManager`.
+- Injetar HUD in-page para feedback e ações do revisor.
+- Capturar cliques, navegação, scroll e mudanças de tela.
+- Screenshots sob demanda (Control UI ou HUD) → `sessions/<id>/evidence/`.
+
+## Eventos
+
+Interações geram eventos no `EventStore` (`events.jsonl`). Tipos em `shared/events.ts`.
+
+## Screen state
+
+`ScreenStateEngine` produz snapshots semânticos (`ScreenStateRecord`) para cada tela visitada.
+
+## Testes E2E
+
+```bash
+npm run test:e2e --workspace=server
+```
+
+- `recorder-flow.spec.ts` — fluxo completo com transcriber falso.
+- Preferir seletores estáveis (role, text, data attributes).
+- Zero `sleep()` arbitrário — usar waits do Playwright.
+
+## Fixtures
+
+- Demo app em `fixtures/` para navegação de teste.
+- Não depender de sites externos em testes automatizados.
+
+## Cuidados
+
+- HUD não deve interferir na app sob revisão além do necessário.
+- Screenshots devem correlacionar com segmentos de fala quando `pendingEvidence` ativo.

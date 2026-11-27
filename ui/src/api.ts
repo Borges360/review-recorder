@@ -54,6 +54,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   getConfig: () => request<{ openaiConfigured: boolean }>('/config'),
   listSessions: () => request<SessionRecord[]>('/sessions'),
+  getSession: (id: string) => request<SessionRecord>(`/sessions/${id}`),
   createSession: (name: string, initialUrl?: string, description?: string) =>
     request<SessionRecord>('/sessions', {
       method: 'POST',

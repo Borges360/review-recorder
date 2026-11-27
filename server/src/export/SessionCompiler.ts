@@ -7,6 +7,26 @@ import type { SessionRepository } from '../persistence/SessionRepository.js';
 import { JsonExporter } from './JsonExporter.js';
 import { MarkdownExporter } from './MarkdownExporter.js';
 import { TimelineReducer } from '../timeline/TimelineReducer.js';
+import {
+  splitTranscriptByClickTimes,
+  type ClickSplitPoint,
+  type ScreenSnapshot,
+} from '../timeline/SpeechClickSplitter.js';
+import type { ElementIdentity } from '../shared/types.js';
+
+interface StagedEntry {
+  atMs: number;
+  entry: Omit<TimelineEntry, 'id'>;
+}
+
+function screenAtTime(timeline: { atMs: number; screen: ScreenSnapshot }[], atMs: number): ScreenSnapshot {
+  let current = timeline[0]?.screen ?? { id: '', url: '', title: '' };
+  for (const entry of timeline) {
+    if (entry.atMs <= atMs) current = entry.screen;
+    else break;
+  }
+  return current;
+}
 
 export class SessionCompiler {
   constructor(
@@ -19,10 +39,13 @@ export class SessionCompiler {
     if (!session) throw new Error('Session not found');
 
     const eventsPath = `${this.sessionDir}/raw/events.jsonl`;
-    const entries: TimelineEntry[] = [];
+    const staged: StagedEntry[] = [];
     let lastScreenTitle = '';
     let lastScreenUrl = '';
     let lastScreenId = '';
+    const screenStates = new Map<string, ScreenSnapshot>();
+    const screenTimeline: { atMs: number; screen: ScreenSnapshot }[] = [];
+    const clickPoints: ClickSplitPoint[] = [];
     let inputBuffer: { label: string; startMs: number; endMs: number } | null = null;
 
     const stream = createReadStream(eventsPath, { encoding: 'utf8' });
@@ -42,21 +65,23 @@ export class SessionCompiler {
 
       switch (event.type) {
         case EVENT_TYPES.SESSION_STARTED:
-          entries.push({
-            id: `tl-${entries.length}`,
-            offset,
-            type: 'session',
-            label: 'SESSION START',
-            name: payload.name,
+          staged.push({
+            atMs: event.activeElapsedMs,
+            entry: {
+              offset,
+              type: 'session',
+              label: 'SESSION START',
+              name: payload.name,
+            },
           });
           break;
 
         case EVENT_TYPES.SESSION_PAUSED:
-          entries.push({ id: `tl-${entries.length}`, offset, type: 'pause', label: 'PAUSE' });
+          staged.push({ atMs: event.activeElapsedMs, entry: { offset, type: 'pause', label: 'PAUSE' } });
           break;
 
         case EVENT_TYPES.SESSION_RESUMED:
-          entries.push({ id: `tl-${entries.length}`, offset, type: 'resume', label: 'RESUME' });
+          staged.push({ atMs: event.activeElapsedMs, entry: { offset, type: 'resume', label: 'RESUME' } });
           break;
 
         case EVENT_TYPES.SCREEN_STATE_CREATED:
@@ -64,11 +89,12 @@ export class SessionCompiler {
           lastScreenTitle = (payload.title as string) ?? lastScreenTitle;
           lastScreenUrl = (payload.url as string) ?? lastScreenUrl;
           lastScreenId = (payload.stateId as string) ?? lastScreenId;
-          entries.push({
-            id: `tl-${entries.length}`,
-            offset,
-            type: 'screen',
-            screen: { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle },
+          const screen = { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle };
+          if (lastScreenId) screenStates.set(lastScreenId, screen);
+          screenTimeline.push({ atMs: event.activeElapsedMs, screen });
+          staged.push({
+            atMs: event.activeElapsedMs,
+            entry: { offset, type: 'screen', screen },
           });
           inputBuffer = null;
           break;
@@ -78,12 +104,20 @@ export class SessionCompiler {
           inputBuffer = null;
           const target = payload.target as Record<string, unknown> | null;
           const name = target?.accessibleName ?? target?.text ?? 'elemento';
-          entries.push({
-            id: `tl-${entries.length}`,
-            offset,
-            type: 'action',
-            action: `Click "${name}"`,
-            target,
+          const screen = { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle };
+          clickPoints.push({
+            atMs: event.activeElapsedMs,
+            target: (target as ElementIdentity | null) ?? null,
+            screen,
+          });
+          staged.push({
+            atMs: event.activeElapsedMs,
+            entry: {
+              offset,
+              type: 'action',
+              action: `Click "${name}"`,
+              target,
+            },
           });
           break;
         }
@@ -95,7 +129,7 @@ export class SessionCompiler {
             inputBuffer.endMs = event.activeElapsedMs;
           } else {
             if (inputBuffer) {
-              entries.push(this.inputEntry(inputBuffer, entries.length));
+              staged.push(this.inputStagedEntry(inputBuffer));
             }
             inputBuffer = { label, startMs: event.activeElapsedMs, endMs: event.activeElapsedMs };
           }
@@ -104,44 +138,62 @@ export class SessionCompiler {
 
         case EVENT_TYPES.FORM_SUBMITTED:
           if (inputBuffer) {
-            entries.push(this.inputEntry(inputBuffer, entries.length));
+            staged.push(this.inputStagedEntry(inputBuffer));
             inputBuffer = null;
           }
-          entries.push({
-            id: `tl-${entries.length}`,
-            offset,
-            type: 'action',
-            action: 'Submit formulário',
+          staged.push({
+            atMs: event.activeElapsedMs,
+            entry: { offset, type: 'action', action: 'Submit formulário' },
           });
           break;
 
         case EVENT_TYPES.TRANSCRIPT_FINAL: {
           if (inputBuffer) {
-            entries.push(this.inputEntry(inputBuffer, entries.length));
+            staged.push(this.inputStagedEntry(inputBuffer));
             inputBuffer = null;
           }
           const segment = payload.segment as Record<string, unknown>;
-          entries.push({
-            id: `tl-${entries.length}`,
-            offset,
-            type: 'observation',
-            scope: segment.scope,
-            speech: { text: segment.text },
-            screen: { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle },
-            candidateElement: segment.candidateElement,
-            associationConfidence: segment.associationConfidence,
-          });
+          const speechText = (segment.text as string) ?? '';
+          const speechStartMs =
+            typeof segment.startedAtMs === 'number' ? segment.startedAtMs : event.activeElapsedMs;
+          const speechEndMs =
+            typeof segment.endedAtMs === 'number' ? segment.endedAtMs : event.activeElapsedMs;
+          const startScreen = screenAtTime(screenTimeline, speechStartMs);
+          const chunks = splitTranscriptByClickTimes(
+            speechText,
+            speechStartMs,
+            speechEndMs,
+            clickPoints,
+            startScreen,
+          );
+
+          for (const chunk of chunks) {
+            staged.push({
+              atMs: chunk.startedAtMs,
+              entry: {
+                offset: formatOffset(chunk.startedAtMs),
+                type: 'observation',
+                scope: chunk.scope,
+                speech: { text: chunk.text },
+                screen: chunk.screen,
+                candidateElement: chunk.candidateElement,
+                associationConfidence: chunk.associationConfidence,
+              },
+            });
+          }
           break;
         }
 
         case EVENT_TYPES.SCREENSHOT_CAPTURED: {
           const evidence = payload.evidence as Record<string, unknown>;
-          entries.push({
-            id: `tl-${entries.length}`,
-            offset,
-            type: 'evidence',
-            evidence: [{ type: 'screenshot', path: evidence.file }],
-            screen: { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle },
+          staged.push({
+            atMs: event.activeElapsedMs,
+            entry: {
+              offset,
+              type: 'evidence',
+              evidence: [{ type: 'screenshot', path: evidence.file }],
+              screen: { id: lastScreenId, url: lastScreenUrl, title: lastScreenTitle },
+            },
           });
           break;
         }
@@ -149,8 +201,14 @@ export class SessionCompiler {
     }
 
     if (inputBuffer) {
-      entries.push(this.inputEntry(inputBuffer, entries.length));
+      staged.push(this.inputStagedEntry(inputBuffer));
     }
+
+    staged.sort((a, b) => a.atMs - b.atMs || 0);
+    const entries = staged.map((item, idx) => ({
+      ...item.entry,
+      id: `tl-${idx}`,
+    })) as TimelineEntry[];
 
     const reducer = new TimelineReducer();
     const review: ReviewPackage = {
@@ -174,14 +232,16 @@ export class SessionCompiler {
     return review;
   }
 
-  private inputEntry(buf: { label: string; startMs: number; endMs: number }, idx: number): TimelineEntry {
+  private inputStagedEntry(buf: { label: string; startMs: number; endMs: number }): StagedEntry {
     const start = formatOffset(buf.startMs);
     const end = formatOffset(buf.endMs);
     return {
-      id: `tl-${idx}`,
-      offset: start === end ? start : `${start}–${end}`,
-      type: 'action',
-      action: `Preencheu o campo "${buf.label}"`,
+      atMs: buf.startMs,
+      entry: {
+        offset: start === end ? start : `${start}–${end}`,
+        type: 'action',
+        action: `Preencheu o campo "${buf.label}"`,
+      },
     };
   }
 }

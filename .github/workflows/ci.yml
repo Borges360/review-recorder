@@ -1,5 +1,6 @@
 name: CI
 on:
+  workflow_dispatch:
   push:
     branches: [main, develop, 'feature/**', 'release/**', 'hotfix/**']
   pull_request:
@@ -32,3 +33,4 @@ jobs:
         run: npm run test:e2e
         env:
           OPENAI_API_KEY: sk-test-fake-key-for-ci
+          TRANSCRIPTION_PROVIDER: openai

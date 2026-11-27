@@ -20,13 +20,15 @@ export interface TranscriberCallbacks {
   onError: (error: string) => void;
 }
 
+/** Commit buffered audio periodically — gpt-live-transcribe requires explicit commits (no server VAD). */
+const AUDIO_COMMIT_INTERVAL_MS = 30_000;
+
 export class OpenAITranscriber {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private closed = false;
   private audioMsWritten = 0;
-  private lastCommitMs = 0;
-  private readonly commitIntervalMs = 3000;
+  private lastCommitAudioMs = 0;
 
   constructor(
     private readonly apiKey: string,
@@ -121,15 +123,15 @@ export class OpenAITranscriber {
       type: 'input_audio_buffer.append',
       audio: pcmBuffer.toString('base64'),
     });
-    if (this.audioMsWritten - this.lastCommitMs >= this.commitIntervalMs) {
+    if (this.audioMsWritten - this.lastCommitAudioMs >= AUDIO_COMMIT_INTERVAL_MS) {
       this.commitBuffer();
+      this.lastCommitAudioMs = this.audioMsWritten;
     }
   }
 
   commitBuffer(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     this.send({ type: 'input_audio_buffer.commit' });
-    this.lastCommitMs = this.audioMsWritten;
   }
 
   getAudioMsWritten(): number {

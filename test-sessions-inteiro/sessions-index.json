@@ -1,0 +1,34 @@
+{
+  "sessions": {
+    "6693da2b-c7ae-4d3d-b738-5edf713bad02": {
+      "id": "6693da2b-c7ae-4d3d-b738-5edf713bad02",
+      "name": "Teste 8",
+      "slug": "teste-8",
+      "initialUrl": "http://localhost:8080/login",
+      "description": null,
+      "status": "RECOVERABLE",
+      "createdAt": "2026-08-30T21:16:39.771Z",
+      "startedAt": "2026-08-30T21:16:39.780Z",
+      "stoppedAt": null,
+      "outputDir": "sessions\\2026-08-30T21-16-39__teste-8",
+      "wallElapsedMs": 0,
+      "activeElapsedMs": 0,
+      "diagnosticTrace": false
+    },
+    "5830877e-8471-4e6e-ab32-3d3db61930ac": {
+      "id": "5830877e-8471-4e6e-ab32-3d3db61930ac",
+      "name": "Teste 9",
+      "slug": "teste-9",
+      "initialUrl": "http://localhost:8080/login",
+      "description": null,
+      "status": "COMPLETED",
+      "createdAt": "2026-08-30T21:17:01.194Z",
+      "startedAt": "2026-08-30T21:17:01.202Z",
+      "stoppedAt": "2026-08-30T21:18:10.412Z",
+      "outputDir": "sessions\\2026-08-30T21-17-01__teste-9",
+      "wallElapsedMs": 69210,
+      "activeElapsedMs": 69205,
+      "diagnosticTrace": false
+    }
+  }
+}

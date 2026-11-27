@@ -8,6 +8,7 @@ import {
 import { join } from 'node:path';
 import type { SessionRecord, SessionStatus } from '../shared/types.js';
 import { resolveSessionOutputDir } from '../shared/config.js';
+import type { RemoteStores } from './RemoteStores.js';
 
 interface SessionIndex {
   sessions: Record<string, SessionRecord>;
@@ -118,5 +119,30 @@ export class SessionRepository {
         this.updateSession(s.id, { status: 'RECOVERABLE' });
       }
     }
+  }
+}
+
+export class MirrorSessionRepository extends SessionRepository {
+  constructor(
+    sessionsDir: string,
+    private readonly remote: RemoteStores,
+  ) {
+    super(sessionsDir);
+  }
+
+  override createSession(session: SessionRecord): void {
+    super.createSession(session);
+    void this.remote.upsertSession(session).catch((error) => {
+      console.warn(`Postgres session insert failed: ${String(error)}`);
+    });
+  }
+
+  override updateSession(id: string, patch: Partial<SessionRecord>): void {
+    super.updateSession(id, patch);
+    const full = this.getSession(id);
+    if (!full) return;
+    void this.remote.upsertSession(full).catch((error) => {
+      console.warn(`Postgres session update failed: ${String(error)}`);
+    });
   }
 }

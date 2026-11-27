@@ -38,6 +38,8 @@ export interface SessionRecord {
   wallElapsedMs: number;
   activeElapsedMs: number;
   diagnosticTrace: boolean;
+  /** Absent means the Playwright browser capture used by the local recorder. */
+  capture?: 'playwright' | 'extension';
 }
 
 export interface ScreenStateRecord {
@@ -120,15 +122,42 @@ export interface ReviewPackage {
   timeline: TimelineEntry[];
 }
 
+export interface S3Config {
+  endpoint: string;
+  bucket: string;
+  accessKey: string;
+  secretKey: string;
+  region: string;
+}
+
+export type TranscriptionProviderName = 'openai' | 'openrouter';
+
+/** HTTP transcription (chunks, offline, recovery). Realtime always uses OpenAI and is not part of it. */
+export interface TranscriptionConfig {
+  /** Null when TRANSCRIPTION_PROVIDER is missing or invalid. */
+  provider: TranscriptionProviderName | null;
+  apiKey: string | null;
+  baseUrl: string;
+  model: string;
+  /** Named configuration error; transcription is unavailable while it is set. */
+  error: string | null;
+}
+
 export interface AppConfig {
   port: number;
+  host: string;
   uiOrigin: string;
   sessionsDir: string;
   dataDir: string;
   browserProfileDir: string;
   openaiApiKey: string | null;
+  transcription: TranscriptionConfig;
   diagnosticTrace: boolean;
   useFakeTranscriber: boolean;
   mockBrowser: boolean;
   browserHeadless: boolean;
+  /** When set, every route except health, demo, the history page and its INTEIRO stylesheets requires this bearer token. */
+  apiToken: string | null;
+  databaseUrl: string | null;
+  s3: S3Config | null;
 }

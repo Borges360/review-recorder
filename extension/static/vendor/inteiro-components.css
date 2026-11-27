@@ -1,0 +1,138 @@
+/* INTEIRO component recipes — CSS puro, sem React. */
+
+.in-root {
+  font-family: var(--in-font-family-sans);
+  font-variation-settings: var(--in-font-voice-rational);
+  background: var(--in-color-background-canvas);
+  color: var(--in-color-text-primary);
+  min-block-size: 100dvh;
+}
+
+.in-voice-rational { font-variation-settings: var(--in-font-voice-rational); }
+.in-voice-human { font-variation-settings: var(--in-font-voice-human); }
+.in-voice-signal { font-variation-settings: var(--in-font-voice-signal); }
+.in-voice-machine {
+  font-family: var(--in-font-family-machine);
+  font-variation-settings: var(--in-font-voice-machine);
+}
+
+.in-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--in-space-150);
+  min-block-size: var(--in-button-size-md-height);
+  padding-inline: var(--in-button-size-md-padding-inline);
+  border: var(--in-border-hairline) solid transparent;
+  border-radius: var(--in-radius-md);
+  font-family: inherit;
+  font-size: var(--in-button-size-md-font-size);
+  font-weight: var(--in-font-weight-semibold);
+  font-variation-settings: var(--in-font-voice-rational);
+  cursor: pointer;
+  transition:
+    background var(--in-motion-fast) var(--in-ease-standard),
+    border-color var(--in-motion-fast) var(--in-ease-standard),
+    transform var(--in-motion-snap) var(--in-ease-standard);
+}
+.in-button:focus-visible {
+  outline: var(--in-border-focus) solid var(--in-color-focus-ring);
+  outline-offset: 2px;
+}
+.in-button:active { transform: translateY(1px); }
+.in-button:disabled {
+  cursor: not-allowed;
+  background: var(--in-color-action-disabled-background);
+  color: var(--in-color-action-disabled-foreground);
+  transform: none;
+}
+.in-button--sm { min-block-size: var(--in-button-size-sm-height); padding-inline: var(--in-button-size-sm-padding-inline); font-size: var(--in-button-size-sm-font-size); }
+.in-button--lg { min-block-size: var(--in-button-size-lg-height); padding-inline: var(--in-button-size-lg-padding-inline); font-size: var(--in-button-size-lg-font-size); }
+.in-button--primary { background: var(--in-color-action-primary-background); color: var(--in-color-action-primary-foreground); }
+.in-button--primary:hover:not(:disabled) { background: var(--in-color-action-primary-hover); }
+.in-button--commit { background: var(--in-color-action-commit-background); color: var(--in-color-action-commit-foreground); }
+.in-button--commit:hover:not(:disabled) { background: var(--in-color-action-commit-hover); }
+.in-button--danger { background: var(--in-color-action-danger-background); color: var(--in-color-action-danger-foreground); }
+.in-button--secondary {
+  background: var(--in-color-background-surface);
+  color: var(--in-color-text-primary);
+  border-color: var(--in-color-border-interactive);
+}
+.in-button--ghost, .in-button--quiet {
+  background: transparent;
+  color: var(--in-color-text-secondary);
+}
+.in-button--quiet { color: var(--in-color-text-tertiary); }
+
+.in-field { display: flex; flex-direction: column; gap: var(--in-input-label-gap); }
+.in-field__label { font-size: var(--in-type-label-size); font-weight: var(--in-type-label-weight); letter-spacing: var(--in-type-label-tracking); }
+.in-input {
+  min-block-size: var(--in-input-height-md);
+  padding-inline: var(--in-input-padding-inline);
+  padding-block: var(--in-input-padding-block);
+  border: var(--in-input-border-width) solid var(--in-color-border-interactive);
+  border-radius: var(--in-radius-md);
+  background: var(--in-color-background-surface);
+  color: var(--in-color-text-primary);
+  font: inherit;
+}
+.in-input:hover { border-color: var(--in-color-border-strong); }
+.in-input:focus-visible {
+  outline: var(--in-input-focus-width) solid var(--in-color-focus-ring);
+  outline-offset: 2px;
+  border-color: var(--in-color-identity-primary);
+}
+.in-input[aria-invalid="true"] { border-color: var(--in-color-status-danger); }
+.in-input:disabled {
+  background: var(--in-color-action-disabled-background);
+  color: var(--in-color-action-disabled-foreground);
+}
+.in-input[readonly] { background: var(--in-color-background-sunken); }
+.in-field__message { font-size: var(--in-type-caption-size); color: var(--in-color-text-secondary); }
+.in-field__message--error { color: var(--in-color-status-danger); }
+
+.in-card {
+  background: var(--in-color-background-surface);
+  border: var(--in-border-hairline) solid var(--in-color-border-subtle);
+  border-radius: var(--in-radius-lg);
+  padding: var(--in-density-card-padding);
+}
+.in-card[data-kind="reflection"] {
+  border-inline-start: var(--in-border-seam) solid var(--in-color-identity-primary);
+  padding-inline-start: var(--in-space-400);
+}
+.in-card[data-kind="commit"] {
+  border-inline-start: var(--in-border-seam) solid var(--in-color-identity-commit);
+  padding-inline-start: var(--in-space-400);
+}
+
+.in-badge {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--in-space-600);
+  padding-inline: var(--in-space-200);
+  border-radius: var(--in-radius-full);
+  font-size: var(--in-type-caption-size);
+  font-weight: var(--in-font-weight-semibold);
+  background: var(--in-color-background-raised);
+  color: var(--in-color-text-secondary);
+}
+.in-badge--identity { background: var(--in-color-identity-subtle); color: var(--in-color-identity-primary); }
+.in-badge--success { background: var(--in-color-status-success-subtle); color: var(--in-color-status-success); }
+.in-badge--warning { background: var(--in-color-status-warning-subtle); color: var(--in-color-status-warning); }
+.in-badge--danger { background: var(--in-color-status-danger-subtle); color: var(--in-color-status-danger); }
+.in-badge--info { background: var(--in-color-status-info-subtle); color: var(--in-color-status-info); }
+
+.in-stack { display: flex; flex-direction: column; gap: var(--in-density-list-gap); }
+.in-row { display: flex; flex-wrap: wrap; gap: var(--in-space-200); align-items: center; }
+.in-cluster { display: flex; flex-wrap: wrap; gap: var(--in-space-300); }
+
+.in-title { font-size: var(--in-type-title-size); line-height: var(--in-type-title-line-height); font-weight: var(--in-type-title-weight); letter-spacing: var(--in-type-title-tracking); }
+.in-body { font-size: var(--in-type-body-md-size); line-height: var(--in-type-body-md-line-height); }
+.in-muted { color: var(--in-color-text-secondary); }
+.in-measure { max-inline-size: var(--in-layout-content-reading); }
+
+:focus-visible {
+  outline: var(--in-border-focus) solid var(--in-color-focus-ring);
+  outline-offset: 2px;
+}

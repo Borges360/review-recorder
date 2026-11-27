@@ -1,0 +1,49 @@
+---
+description: "QA/SDET ao editar testes ou estratégia de qualidade neste repo."
+globs:
+  - server/test/**/*
+  - "**/playwright.config.ts"
+  - "**/vitest.config.ts"
+alwaysApply: false
+---
+
+# QA — review-recorder (Vitest + Playwright)
+
+## Stack deste projeto
+
+- **Unit:** Vitest em `server/test/unit/` → `npm test`
+- **E2E:** Playwright em `server/test/e2e/` → `npm run test:e2e`
+- **Aceitação:** `acceptance.test.ts` (AC-001 a AC-040) — espelha [MVP_VALIDATION.md](../../docs/MVP_VALIDATION.md)
+- **Lint:** `npm run lint` na raiz
+
+## Princípios
+
+- Testes independentes, determinísticos; zero `sleep()` — usar waits de Playwright/Vitest.
+- Testar comportamento, não implementação interna.
+- E2E para golden paths (recorder-flow completo); regras de timeline/correlação em unit.
+- Bugfix exige regressão automatizada na camada adequada.
+- Testes devem validar regra em AGENTS.md ou MVP_VALIDATION, não apenas comportamento acidental.
+- Reuso: `FakeTranscriber`, fixtures e helpers existentes antes de criar novos.
+
+## Padrões E2E (Playwright)
+
+- Seletores: role/name/label; evitar classes CSS frágeis.
+- Demo app local (`fixtures/`) — não depender de rede externa.
+- Limpar apenas massa criada pelo próprio teste.
+
+## Classificação de falha
+
+| Tipo | Ação |
+|------|------|
+| Bug produto | Corrigir código + regressão |
+| Bug teste | Skill `qa-correcao-testes-segura` |
+| Infra/flaky | Reproduzir com comando exato; estabilizar wait/fixture |
+| Doc desatualizada | Atualizar MVP_VALIDATION ou AGENTS.md |
+
+## Comandos
+
+```bash
+npm test                              # unit + acceptance
+npm run test:e2e --workspace=server   # e2e
+npm run lint
+```

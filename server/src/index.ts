@@ -5,7 +5,9 @@ import fastifyStatic from '@fastify/static';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig } from './shared/config.js';
-import { SessionRepository } from './persistence/SessionRepository.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { MirrorSessionRepository, SessionRepository } from './persistence/SessionRepository.js';
+import { RemoteStores } from './persistence/RemoteStores.js';
 import { SessionManager } from './session/SessionManager.js';
 import { registerRoutes } from './app/routes.js';
 import { registerWebSockets } from './app/websocket.js';
@@ -15,12 +17,40 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export async function buildApp() {
   const config = loadConfig();
   const app = Fastify({ logger: true });
+  if (config.transcription.error && !config.useFakeTranscriber) {
+    // The server still boots; HTTP transcription stays unavailable until the configuration is fixed.
+    app.log.warn(`HTTP transcription unavailable: ${config.transcription.error}`);
+  }
 
   await app.register(cors, { origin: config.uiOrigin, credentials: true });
   await app.register(websocket);
+  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_req, body, done) => {
+    done(null, body);
+  });
 
-  const repo = new SessionRepository(config.sessionsDir);
-  const sessions = new SessionManager(config, repo);
+  app.addHook('onRequest', async (req, reply) => {
+    if (!config.apiToken) return;
+    const path = req.url.split('?')[0] ?? req.url;
+    if (
+      path === '/health' ||
+      path === '/' ||
+      path.startsWith('/demo') ||
+      path.startsWith('/assets/inteiro/')
+    ) {
+      return;
+    }
+    const header = req.headers.authorization;
+    if (header !== `Bearer ${config.apiToken}`) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+  });
+
+  const remote = new RemoteStores(config);
+  await remote.init();
+  const repo = remote.hasDatabase
+    ? new MirrorSessionRepository(config.sessionsDir, remote)
+    : new SessionRepository(config.sessionsDir);
+  const sessions = new SessionManager(config, repo, remote);
 
   await registerRoutes(app, sessions, config);
   await registerWebSockets(app, sessions);
@@ -37,13 +67,40 @@ export async function buildApp() {
     return reply.redirect('/demo/index.html');
   });
 
+  const historyPath = existsSync(join(__dirname, '../history/index.html'))
+    ? join(__dirname, '../history/index.html')
+    : join(__dirname, '../../history/index.html');
+  const inteiroRoot = join(__dirname, '../..');
+  const inteiroStyles: Record<string, string> = {
+    '/assets/inteiro/tokens.css': join(inteiroRoot, 'node_modules/@inteiro/tokens/dist/css/inteiro.css'),
+    '/assets/inteiro/components.css': join(
+      inteiroRoot,
+      'node_modules/@inteiro/design-system/src/components.css',
+    ),
+  };
+  for (const [url, filePath] of Object.entries(inteiroStyles)) {
+    app.get(url, async (_req, reply) => {
+      if (!existsSync(filePath)) return reply.code(404).send('INTEIRO CSS ausente');
+      return reply.type('text/css; charset=utf-8').send(readFileSync(filePath));
+    });
+  }
+  for (const name of ['fonts.css', 'recursive-latin.woff2']) {
+    app.get('/assets/inteiro/recursive/' + name, async (_req, reply) => {
+      const contentType = name.endsWith('.woff2') ? 'font/woff2' : 'text/css; charset=utf-8';
+      return reply.type(contentType).send(readFileSync(join(inteiroRoot, 'assets/recursive', name)));
+    });
+  }
+  app.get('/', async (_req, reply) => {
+    return reply.type('text/html; charset=utf-8').send(readFileSync(historyPath, 'utf8'));
+  });
+
   return { app, config, sessions, repo };
 }
 
 async function main() {
   const { app, config } = await buildApp();
-  await app.listen({ port: config.port, host: '127.0.0.1' });
-  console.log(`Server running at http://127.0.0.1:${config.port}`);
+  await app.listen({ port: config.port, host: config.host });
+  console.log(`Server running at http://${config.host}:${config.port}`);
 }
 
 const isDirectRun =

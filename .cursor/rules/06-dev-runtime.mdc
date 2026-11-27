@@ -1,0 +1,62 @@
+---
+description: "Runtime local — agente reinicia serviços dev; nunca delegar ao usuário."
+alwaysApply: true
+---
+
+# Dev runtime — autonomia obrigatória
+
+O agente **executa** operações de runtime local. **Não** pedir ao usuário reiniciar serviços, rodar comandos que o agente pode rodar, ou "testar quando reiniciar".
+
+## Proibido na resposta
+
+- "Reinicie o server" / "Rode `npm run dev:server`"
+- "Abra um terminal e…"
+- "Quando reiniciar, teste…"
+- Delegar validação de runtime que depende só de processo local
+
+## Obrigatório
+
+1. **Detectar** se mudança afeta runtime (`server/src/`, config do server, `.env.example`, rotas, voz, sessão, browser).
+2. **Reiniciar** o serviço afetado **sem pedir permissão** (salvo bloqueio real de ambiente).
+3. **Confirmar** subida (log `listening`, HTTP 200, ou ausência de `EADDRINUSE`).
+4. **Reportar** só o resultado: "Server reiniciado em :3000" — não instruir o usuário a fazer o mesmo.
+
+## Serviços deste monorepo
+
+| Serviço | Comando | URL | Quando reiniciar |
+|---------|---------|-----|------------------|
+| Backend | `npm run dev:server` | http://127.0.0.1:3000 | Alterou `server/` ou comportamento de API/WS/voz/sessão |
+| Control UI | `npm run dev:ui` | http://127.0.0.1:5179 | Alterou `ui/` e HMR não basta (config Vite, proxy, env) |
+
+UI com Vite: **não** reiniciar por default em edits de componente (HMR). Backend com `tsx watch`: reiniciar se watch falhou, porta ocupada por processo antigo, ou usuário reporta comportamento desatualizado.
+
+## Porta ocupada (Windows)
+
+```powershell
+netstat -ano | findstr :3000
+Stop-Process -Id <PID> -Force -ErrorAction SilentlyContinue
+# repetir para :5179 se necessário
+npm run dev:server   # em background
+```
+
+Rodar dev servers **em background**; aguardar log de startup antes de concluir a tarefa.
+
+## Fluxo padrão após implementação no server
+
+1. `npm test` (ou teste alvo)
+2. Matar processo na porta se `EADDRINUSE`
+3. `npm run dev:server` em background
+4. Validar que subiu
+5. Informar URL pronta — **sem** checklist manual para o usuário
+
+## Quando pode pedir ao usuário
+
+- Credenciais (`.env`, login na app sob revisão)
+- Interação manual irreplaceável (passkey, captcha, fluxo na app do cliente)
+- Validar UX subjetiva ou gravação de voz/microfone no browser **dele**
+
+Fora isso: **agente faz**.
+
+## Referência
+
+Comandos: [AGENTS.md](../../AGENTS.md). Router: `07-workflow-router`.

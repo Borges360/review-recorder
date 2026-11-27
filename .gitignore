@@ -16,3 +16,45 @@ coverage/
 Thumbs.db
 *.log
 .cursor/plans/
+
+# harness:versioned-instructions:start
+# O contrato local é gerado e versionado; estado de execução fica fora do Git.
+.harness/*
+!.harness/project.json
+!.harness/project.json.harness-managed
+!.harness/project.mjs
+!.harness/project.mjs.harness-managed
+!.harness/install-manifest.json
+!.harness/install-manifest.json.harness-managed
+!.harness/mcp-managed.json
+# harness:versioned-instructions:end
+
+# Cópias instaladas pelo harness e preferências locais de runtime.
+.claude/settings.local.json
+.claude/skills/harness-*/
+.claude/skills/grill-me/
+.agents/skills/harness-*/
+.agents/skills/grill-me/
+.cursor/skills/harness-*/
+.cursor/skills/grill-me/
+.pi/skills/harness-*/
+.pi/skills/grill-me/
+.cursor/rules/ci-jenkins.mdc
+.cursor/rules/ci-jenkins.mdc.harness-managed
+.cursor/rules/design-system.mdc
+.cursor/rules/design-system.mdc.harness-managed
+.cursor/rules/gitflow.mdc
+.cursor/rules/gitflow.mdc.harness-managed
+.cursor/rules/harness-core.mdc
+.cursor/rules/harness-core.mdc.harness-managed
+.cursor/rules/pi-extensions.mdc
+.cursor/rules/pi-extensions.mdc.harness-managed
+.cursor/rules/proactive-suggestions.mdc
+.cursor/rules/proactive-suggestions.mdc.harness-managed
+.codex/*
+!.codex/config.toml
+.codex-plugin/
+
+# Saídas geradas pelos E2E.
+test-sessions-e2e/
+test-sessions-e2e-recorder/

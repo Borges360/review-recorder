@@ -1,0 +1,52 @@
+---
+description: "Convenções TypeScript e Fastify para server/"
+globs: server/**/*.ts
+alwaysApply: false
+---
+
+# Server — Fastify + TypeScript ESM
+
+## Imports ESM
+
+```typescript
+// ✅
+import { loadConfig } from './shared/config.js';
+
+// ❌
+import { loadConfig } from './shared/config';
+```
+
+## Estrutura de módulos
+
+| Pasta | Responsabilidade |
+|-------|------------------|
+| `app/` | Rotas HTTP (`routes.ts`), WebSocket (`websocket.ts`) |
+| `session/` | `SessionManager`, ciclo de vida, estados |
+| `browser/` | Playwright, HUD, screenshots, interações |
+| `timeline/` | `TimelineReducer`, `CorrelationEngine`, `ScreenStateEngine` |
+| `voice/` | Transcrição (OpenAI, fake, offline) |
+| `export/` | `SessionCompiler`, `MarkdownExporter`, `JsonExporter` |
+| `persistence/` | `EventStore`, `SessionRepository` |
+| `shared/` | `types.ts`, `events.ts`, `config.ts` |
+
+## Session lifecycle
+
+Respeite transições em `SessionState.ts`. Estados terminais: `COMPLETED`, `FAILED`.
+Sessões interrompidas: `RECOVERABLE` — finalize via API ou `npm run compile`.
+
+## Testes
+
+```bash
+npm test --workspace=server
+npm run test:e2e --workspace=server
+```
+
+- Unit: `server/test/unit/*.test.ts` junto ao domínio afetado.
+- Use `FakeTranscriber` — não dependa de `OPENAI_API_KEY` em testes.
+- E2E: `server/test/e2e/` com browser mock ou Chromium conforme spec.
+
+## Rotas principais
+
+- `POST /sessions` — criar sessão
+- `POST /sessions/:id/start|pause|resume|stop|finalize`
+- WebSocket para eventos em tempo real da Control UI
