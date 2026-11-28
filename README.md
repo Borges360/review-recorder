@@ -17,13 +17,33 @@ Ferramenta local para revisão de aplicações web com navegação real, coment�
 npm install
 npx playwright install chromium
 cp .env.example .env
-# Edite .env com sua OPENAI_API_KEY
+# Edite .env: OPENAI_API_KEY e TRANSCRIPTION_PROVIDER=openai (ou openrouter + OPENROUTER_API_KEY)
 ```
 
-O Realtime continua usando a OpenAI. A transcrição HTTP usa OpenAI por padrão; para
-selecionar OpenRouter, configure `TRANSCRIPTION_PROVIDER=openrouter` e uma chave
-OpenRouter limitada ao projeto e ambiente. A troca preserva o modelo
-`openai/gpt-4o-transcribe`.
+### Provedor de transcrição
+
+`TRANSCRIPTION_PROVIDER` é obrigatório e não tem padrão. Ele escolhe o provedor da
+transcrição HTTP (chunks da extensão, fallback offline ao parar e `recover-transcript`):
+
+| Valor | Chave usada | Endpoint e modelo |
+|-------|-------------|-------------------|
+| `openai` | só `OPENAI_API_KEY` | `https://api.openai.com/v1`, `gpt-4o-transcribe` |
+| `openrouter` | só `OPENROUTER_API_KEY` | `OPENROUTER_TRANSCRIPTION_BASE_URL` ou `OPENROUTER_BASE_URL` (padrão `https://openrouter.ai/api/v1`, só HTTPS), `OPENROUTER_TRANSCRIPTION_MODEL` (padrão `openai/gpt-4o-transcribe`) |
+
+- **Sem fallback.** Seletor ausente ou inválido, chave do provedor escolhido ausente ou
+  URL sem HTTPS deixam a transcrição HTTP indisponível com erro nomeado
+  (`transcription_config_error: ...`). O servidor sobe mesmo assim; o erro aparece no log
+  de boot, em `GET /config` (`transcriptionError`) e em cada chunk. A chave de um provedor
+  nunca é usada pelo outro, e um erro nunca troca de provedor.
+- **Cota OpenRouter.** HTTP 402 sem `Retry-After`, ou 403 com `error.metadata.limit_source`
+  em `openrouter_key_limit`, `openrouter_guardrail_budget` ou `openrouter_workspace_budget`,
+  vira `openrouter_quota_exhausted: cota OpenRouter esgotada`. É terminal: sem retry, sem
+  troca de provedor, e a sessão não chama mais o OpenRouter até terminar.
+- **Roteamento fixo.** As chamadas ao OpenRouter enviam `provider: {"allow_fallbacks": false}`
+  (campo multipart aceito pelo endpoint `/audio/transcriptions`).
+- **Exceção: Realtime fica sempre na OpenAI.** A transcrição ao vivo (WebSocket Realtime,
+  modo Playwright) usa `OPENAI_API_KEY` independentemente do seletor e fica fora do teto
+  mensal do OpenRouter.
 
 Provedor e modelo por tarefa, custo estimado e orçamento mensal também podem ser
 escolhidos no painel **Provedores de IA e custos** (`/admin/llm` na Control UI). Chaves

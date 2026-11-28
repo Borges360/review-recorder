@@ -192,17 +192,21 @@ export class LlmService {
     return Boolean(this.env[this.keyRef(provider)]?.trim());
   }
 
-  private baseUrl(provider: ProviderId): string {
-    if (provider === 'openrouter') return secureBaseUrl(this.env.OPENROUTER_BASE_URL, PROVIDERS.openrouter.defaultBaseUrl);
+  private baseUrl(provider: ProviderId, task?: TaskId): string {
+    if (provider === 'openrouter') {
+      const transcriptionOverride = task === 'transcription_offline' ? this.env.OPENROUTER_TRANSCRIPTION_BASE_URL?.trim() : '';
+      return secureBaseUrl(transcriptionOverride || this.env.OPENROUTER_BASE_URL, PROVIDERS.openrouter.defaultBaseUrl);
+    }
     return PROVIDERS[provider].defaultBaseUrl;
   }
 
   /** Environment-only default route for a task: today's behaviour when nothing is configured. */
-  private envDefault(task: TaskId): { provider: ProviderId; model: string | null } {
+  private envDefault(task: TaskId): { provider: ProviderId | null; model: string | null; error?: string } {
     if (task === 'transcription_realtime') return { provider: 'openai', model: null };
     if (task === 'transcription_offline') {
       const env = resolveTranscriptionConfig(this.env);
-      return { provider: env.provider, model: env.model };
+      // No implicit provider: without TRANSCRIPTION_PROVIDER (and without an admin override) HTTP transcription is unavailable.
+      return { provider: env.provider, model: env.model || null, error: env.error ?? undefined };
     }
     return { provider: 'openai', model: null };
   }
@@ -210,19 +214,23 @@ export class LlmService {
   resolve(task: TaskId): ResolvedRoute {
     const base = this.envDefault(task);
     const override = this.settings.routes[task] ?? {};
-    const provider = override.provider ?? base.provider;
+    const provider = override.provider ?? base.provider ?? 'openai';
     const fallbackModel = provider === base.provider && base.model ? base.model : defaultModelFor(provider, task);
     const model = override.model ?? fallbackModel ?? '';
     const keyRef = this.keyRef(provider);
+    const envKey = this.env[keyRef]?.trim() || null;
+    // The named env error (selector missing/invalid, key missing) applies only to the env-selected provider.
+    const configError = !override.provider && base.error && (base.provider === null || !envKey) ? base.error : undefined;
     return {
       task,
       provider,
       model,
-      baseUrl: this.baseUrl(provider),
+      baseUrl: this.baseUrl(provider, task),
       keyRef,
-      apiKey: this.env[keyRef]?.trim() || null,
+      apiKey: configError ? null : envKey,
       effort: task === 'session_summary' ? override.effort : undefined,
-      supported: providerSupportsTask(provider, task) && model !== '',
+      supported: !configError && providerSupportsTask(provider, task) && model !== '',
+      ...(configError ? { error: configError } : {}),
     };
   }
 

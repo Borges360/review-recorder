@@ -26,12 +26,17 @@ export async function registerRoutes(
 ): Promise<void> {
   app.get('/health', async () => ({ ok: true }));
 
-  app.get('/config', async () => ({
+  app.get('/config', async () => {
+    const offline = sessions.llm.resolve('transcription_offline');
+    return {
     // Whether the key behind the realtime / offline routes is present (never the key itself).
     openaiConfigured: Boolean(sessions.llm.resolve('transcription_realtime').apiKey),
-    transcriptionConfigured: Boolean(sessions.llm.resolve('transcription_offline').apiKey),
+    transcriptionConfigured: Boolean(offline.apiKey) && offline.supported && !offline.error,
+    transcriptionProvider: offline.error ? null : offline.provider,
+    transcriptionError: offline.error ?? null,
     summaryEnabled: sessions.llm.summaryEnabled(),
-  }));
+    };
+  });
 
   app.get<{ Querystring: { limit?: string } }>('/sessions', async (req) => {
     const parsed = Number(req.query.limit ?? 20);

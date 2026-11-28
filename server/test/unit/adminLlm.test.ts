@@ -23,6 +23,7 @@ beforeEach(() => {
   process.env.SESSIONS_DIR = join(root, `sessions-${counter}`);
   process.env.DATA_DIR = join(root, `data-${counter}`);
   process.env.BROWSER_PROFILE_DIR = join(root, `profile-${counter}`);
+  process.env.TRANSCRIPTION_PROVIDER = 'openai';
   process.env.OPENAI_API_KEY = OPENAI;
   process.env.OPENROUTER_API_KEY = OPENROUTER;
   process.env.ANTHROPIC_API_KEY = ANTHROPIC;

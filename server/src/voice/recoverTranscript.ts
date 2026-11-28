@@ -30,6 +30,9 @@ export async function recoverSessionTranscript(
   if (!session?.outputDir) {
     throw new Error('Session not found or has no output directory');
   }
+  if (route.error) {
+    throw new Error(`Offline transcription recovery unavailable: ${route.error}`);
+  }
   if (!route.supported) {
     throw new Error(`${route.provider} does not support offline transcription; choose OpenAI or OpenRouter`);
   }

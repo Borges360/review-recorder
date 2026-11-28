@@ -285,7 +285,7 @@ export class SessionManager {
     const stoppedAt = new Date().toISOString();
     const offlineRoute = this.llm.resolve('transcription_offline');
 
-    if (offlineRoute.apiKey && offlineRoute.supported && existsSync(active.artifacts.getAudioPath())) {
+    if (offlineRoute.apiKey && offlineRoute.supported && !active.transcriptionQuotaError && existsSync(active.artifacts.getAudioPath())) {
       const { readFileSync } = await import('node:fs');
       const transcriptPath = active.artifacts.getTranscriptPath();
       const hasTranscripts = existsSync(transcriptPath) && readFileSync(transcriptPath, 'utf8').trim().length > 0;
@@ -322,6 +322,7 @@ export class SessionManager {
           appendFileSync(transcriptPath, JSON.stringify(segment) + '\n');
           this.emitEvent(active, EVENT_TYPES.TRANSCRIPT_FINAL, { segment, offlineFallback: true });
         } else if (offline.error) {
+          if (offline.quotaExhausted) active.transcriptionQuotaError = offline.error;
           this.emitEvent(active, EVENT_TYPES.RECORDER_ERROR, {
             error: `Offline transcription failed: ${offline.error}`,
             offlineFallback: true,
@@ -437,11 +438,18 @@ export class SessionManager {
     let error: string | undefined;
     let spend: Awaited<ReturnType<LlmService['allowSpend']>>;
     if (!this.config.useFakeTranscriber) {
-      if (!offlineRoute.supported) {
+      if (offlineRoute.error) {
+        error = offlineRoute.error;
+        relative = [];
+      } else if (!offlineRoute.supported) {
         error = 'provider_unsupported';
         relative = [];
       } else if (!offlineRoute.apiKey) {
         error = 'no_api_key';
+        relative = [];
+      } else if (active.transcriptionQuotaError) {
+        // Quota exhaustion is terminal for the session: no further calls, no provider switch.
+        error = active.transcriptionQuotaError;
         relative = [];
       } else if (!(spend = await this.llm.allowSpend(offlineRoute)).allowed) {
         error = spend.reason ?? 'budget_exceeded';
@@ -458,6 +466,7 @@ export class SessionManager {
           audioSeconds: safeDuration / 1000,
           ok: !result.error,
         });
+        if (result.quotaExhausted && result.error) active.transcriptionQuotaError = result.error;
       }
     }
 
@@ -1008,6 +1017,8 @@ interface ActiveSession {
   evidenceRecords: EvidenceRecord[];
   lastSegment: TranscriptSegmentRecord | null;
   lastFingerprint: string | null;
+  /** Set after an OpenRouter budget error; HTTP transcription stays off for the rest of the session. */
+  transcriptionQuotaError?: string;
 }
 
 export interface ExtensionClientEvent {

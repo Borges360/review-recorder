@@ -54,6 +54,8 @@ export interface ResolvedRoute {
   effort?: 'low' | 'medium' | 'high';
   /** False when the provider cannot perform this task (for example Anthropic has no STT). */
   supported: boolean;
+  /** Named configuration error (e.g. TRANSCRIPTION_PROVIDER missing); the task is unavailable while set. */
+  error?: string;
 }
 
 export interface UsageRecord {

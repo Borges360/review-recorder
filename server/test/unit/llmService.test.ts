@@ -18,7 +18,7 @@ const KEYS = {
 };
 
 function svc(env: NodeJS.ProcessEnv = {}, extra: Parameters<typeof LlmService.create>[0] = {}) {
-  return LlmService.create({ env, persistence: new MemoryLlmPersistence(), ...extra });
+  return LlmService.create({ env: { TRANSCRIPTION_PROVIDER: 'openai', ...env }, persistence: new MemoryLlmPersistence(), ...extra });
 }
 
 describe('resolução de rota e retrocompatibilidade', () => {

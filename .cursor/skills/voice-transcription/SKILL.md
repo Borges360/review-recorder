@@ -23,7 +23,7 @@ description: Pipeline de transcrição de voz, OpenAI Realtime, FakeTranscriber 
 
 ## Modos
 
-- **Produção:** `OPENAI_API_KEY` no `.env`
+- **Produção:** `OPENAI_API_KEY` (Realtime, sempre OpenAI) e `TRANSCRIPTION_PROVIDER=openai|openrouter` obrigatório para a transcrição HTTP; `openrouter` usa só `OPENROUTER_API_KEY`. Sem fallback
 - **Testes:** `FakeTranscriber` — nunca exigir API key em CI
 
 ## Validação

@@ -29,7 +29,7 @@ export interface Transcriber {
     bytes: Buffer,
     durationMs: number,
     route: TranscriberRoute,
-  ): Promise<{ segments: RelativeSegment[]; error?: string }>;
+  ): Promise<{ segments: RelativeSegment[]; error?: string; quotaExhausted?: true }>;
   realtime(route: TranscriberRoute, callbacks: TranscriberCallbacks): RealtimeTranscriber;
 }
 
