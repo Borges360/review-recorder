@@ -74,12 +74,28 @@ export function defaultModelFor(provider: ProviderId, task: TaskId): string | nu
   return models.text ?? null;
 }
 
-/** Key references must name an *_API_KEY variable, so the admin cannot point a route at arbitrary env such as DATABASE_URL. */
+/**
+ * Key references are restricted per provider: the provider's own default variable, plus names the
+ * operator pre-declares in the environment (LLM_KEY_REFS_OPENAI, LLM_KEY_REFS_OPENROUTER,
+ * LLM_KEY_REFS_ANTHROPIC, comma-separated). A generic *_API_KEY pattern would let an admin send
+ * another service's key to the provider host, so the admin can only pick from this allowlist.
+ */
 const KEY_REF_RE = /^[A-Z][A-Z0-9_]{0,62}_API_KEY$/;
 
-export function isValidKeyRef(value: string): boolean {
-  return KEY_REF_RE.test(value);
+export function allowedKeyRefs(provider: ProviderId, env: NodeJS.ProcessEnv = process.env): string[] {
+  const extra = (env[`LLM_KEY_REFS_${provider.toUpperCase()}`] ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => KEY_REF_RE.test(v));
+  return [...new Set([PROVIDERS[provider].defaultKeyRef, ...extra])];
 }
+
+export function isValidKeyRef(provider: ProviderId, value: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  return KEY_REF_RE.test(value) && allowedKeyRefs(provider, env).includes(value);
+}
+
+export const EFFORT_LEVELS = ['low', 'medium', 'high'] as const;
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
 
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 

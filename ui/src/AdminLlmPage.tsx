@@ -41,6 +41,7 @@ export function AdminLlmPage() {
   const [drafts, setDrafts] = useState<Record<string, TaskDraft>>({});
   const [keyRefs, setKeyRefs] = useState<Record<string, string>>({});
   const [summaryEnabled, setSummaryEnabled] = useState(false);
+  const [summaryEffort, setSummaryEffort] = useState<'' | 'low' | 'medium' | 'high'>('');
   const [budgetUsd, setBudgetUsd] = useState('');
   const [budgetAction, setBudgetAction] = useState<'warn' | 'block'>('warn');
   const [tariffEdits, setTariffEdits] = useState<Record<string, Tariff>>({});
@@ -51,6 +52,7 @@ export function AdminLlmPage() {
     setDrafts(Object.fromEntries(next.tasks.map((t) => [t.id, { provider: t.provider, model: t.overridden ? t.model : '' }])));
     setKeyRefs(Object.fromEntries(next.providers.map((p) => [p.id, p.keyRef === p.defaultKeyRef ? '' : p.keyRef])));
     setSummaryEnabled(Boolean(next.tasks.find((t) => t.id === 'session_summary')?.enabled));
+    setSummaryEffort(next.tasks.find((t) => t.id === 'session_summary')?.effort ?? '');
     setBudgetUsd(next.budget.monthlyUsd === null ? '' : String(next.budget.monthlyUsd));
     setBudgetAction(next.budget.action);
     setTariffEdits({});
@@ -109,6 +111,11 @@ export function AdminLlmPage() {
         } else {
           routes[task.id] = model ? { provider: draft.provider, model } : { provider: draft.provider };
         }
+      }
+      const summaryTask = view.tasks.find((t) => t.id === 'session_summary');
+      if (summaryTask && summaryEffort !== (summaryTask.effort ?? '')) {
+        const route = routes.session_summary;
+        routes.session_summary = { ...(route ?? { provider: drafts.session_summary?.provider ?? summaryTask.provider }), effort: summaryEffort || null } as never;
       }
       const refs: Record<string, string | null> = {};
       for (const provider of view.providers) {
@@ -185,7 +192,7 @@ export function AdminLlmPage() {
             type="password"
             className="in-input"
             value={tokenInput}
-            placeholder={getAdminToken() ? 'Token salvo nesta aba' : 'ADMIN_TOKEN (ou API_TOKEN)'}
+            placeholder={getAdminToken() ? 'Token salvo nesta aba' : 'ADMIN_TOKEN (API_TOKEN só consulta)'}
             onChange={(e) => setTokenInput(e.target.value)}
           />
           <button
@@ -222,6 +229,7 @@ export function AdminLlmPage() {
                   className="in-input admin-input"
                   value={keyRefs[p.id] ?? ''}
                   placeholder={p.defaultKeyRef}
+                  title={p.allowedKeyRefs ? `Permitidos: ${p.allowedKeyRefs.join(', ')}` : undefined}
                   onChange={(e) => setKeyRefs((prev) => ({ ...prev, [p.id]: e.target.value.trim().toUpperCase() }))}
                 />
                 <button className="in-button in-button--secondary in-button--sm" onClick={() => void handleTest(p.id)}>
@@ -267,7 +275,24 @@ export function AdminLlmPage() {
                     Em uso: {task.provider} / {task.model || '—'}
                     {task.keyConfigured ? '' : ' (chave não configurada)'}
                     {hint ? ` · ${hint}` : ''}
+                    {task.priced === false ? ' · sem tarifa cadastrada: custo desconhecido (bloqueado se o orçamento estiver em modo bloquear)' : ''}
                   </span>
+                  {task.id === 'session_summary' && (
+                    <label className="admin-check">
+                      Esforço de raciocínio{' '}
+                      <select
+                        aria-label="Esforço de raciocínio — resumo"
+                        className="in-input admin-input"
+                        value={summaryEffort}
+                        onChange={(e) => setSummaryEffort(e.target.value as typeof summaryEffort)}
+                      >
+                        <option value="">Padrão do provedor</option>
+                        <option value="low">Baixo</option>
+                        <option value="medium">Médio</option>
+                        <option value="high">Alto</option>
+                      </select>
+                    </label>
+                  )}
                   {task.id === 'session_summary' && (
                     <label className="admin-check">
                       <input

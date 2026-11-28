@@ -49,6 +49,29 @@ describe('permissão de admin', () => {
     expect(checkAdminAccess({ adminToken: null, apiToken: null, host: '127.0.0.1' }, undefined)).toEqual({ ok: true });
   });
 
+  it('checkAdminAccess: API_TOKEN só lê; alterar exige ADMIN_TOKEN; loopback exige origem direta', () => {
+    const apiOnly = { adminToken: null, apiToken: 'b', host: '127.0.0.1' };
+    expect(checkAdminAccess(apiOnly, 'Bearer b', { mutation: false })).toEqual({ ok: true });
+    expect(checkAdminAccess(apiOnly, 'Bearer b', { mutation: true })).toMatchObject({ ok: false, status: 403 });
+    expect(checkAdminAccess(apiOnly, 'Bearer x', { mutation: true })).toMatchObject({ ok: false, status: 401 });
+    const withAdmin = { adminToken: 'a', apiToken: 'b', host: '0.0.0.0' };
+    expect(checkAdminAccess(withAdmin, 'Bearer a', { mutation: true })).toEqual({ ok: true });
+    const local = { adminToken: null, apiToken: null, host: '127.0.0.1' };
+    expect(checkAdminAccess(local, undefined, { mutation: true, remoteAddress: '127.0.0.1' })).toEqual({ ok: true });
+    expect(checkAdminAccess(local, undefined, { mutation: true, remoteAddress: '::1' })).toEqual({ ok: true });
+    // túnel/reverse proxy no mesmo host chega como loopback, mas traz cabeçalhos de proxy
+    expect(checkAdminAccess(local, undefined, { mutation: true, remoteAddress: '127.0.0.1', proxied: true })).toMatchObject({ ok: false, status: 403 });
+    expect(checkAdminAccess(local, undefined, { mutation: true, remoteAddress: '10.0.0.7' })).toMatchObject({ ok: false, status: 403 });
+  });
+
+  it('modo local: cabeçalho de proxy fecha o /admin; chamada direta continua aberta', async () => {
+    const { app } = await buildApp();
+    expect((await app.inject({ method: 'GET', url: '/admin/llm' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/admin/llm', headers: { 'x-forwarded-for': '203.0.113.9' } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'PUT', url: '/admin/llm', headers: { 'x-real-ip': '203.0.113.9' }, payload: { summaryEnabled: true } })).statusCode).toBe(403);
+    await app.close();
+  });
+
   it('com ADMIN_TOKEN, o API_TOKEN comum não abre /admin e o ADMIN_TOKEN não abre o resto', async () => {
     process.env.API_TOKEN = 'api-token';
     process.env.ADMIN_TOKEN = 'admin-token';
@@ -69,6 +92,9 @@ describe('permissão de admin', () => {
     let built = await buildApp();
     expect((await built.app.inject({ method: 'GET', url: '/admin/llm' })).statusCode).toBe(401);
     expect((await built.app.inject({ method: 'GET', url: '/admin/llm', headers: bearer('api-token') })).statusCode).toBe(200);
+    // o API_TOKEN comum (qualquer cliente) lê, mas não altera rotas, orçamento nem chaves
+    expect((await built.app.inject({ method: 'PUT', url: '/admin/llm', headers: bearer('api-token'), payload: { budget: { monthlyUsd: 1 } } })).statusCode).toBe(403);
+    expect((await built.app.inject({ method: 'POST', url: '/admin/llm/test', headers: bearer('api-token'), payload: { provider: 'openai' } })).statusCode).toBe(403);
     await built.app.close();
 
     delete process.env.API_TOKEN;
@@ -80,6 +106,19 @@ describe('permissão de admin', () => {
 });
 
 describe('configuração pelo painel', () => {
+  it('PUT recusa keyRef de outro provedor/serviço e GET lista só nomes permitidos (sem valores)', async () => {
+    process.env.STRIPE_API_KEY = 'sk-stripe-TOPSECRET';
+    const { app } = await buildApp();
+    const bad = await app.inject({ method: 'PUT', url: '/admin/llm', payload: { keyRefs: { openai: 'STRIPE_API_KEY' } } });
+    expect(bad.statusCode).toBe(400);
+    expect((await app.inject({ method: 'PUT', url: '/admin/llm', payload: { keyRefs: { openai: 'ANTHROPIC_API_KEY' } } })).statusCode).toBe(400);
+    const view = (await app.inject({ method: 'GET', url: '/admin/llm' })).json();
+    expect(view.providers.find((p: { id: string }) => p.id === 'openai').allowedKeyRefs).toEqual(['OPENAI_API_KEY']);
+    expect(JSON.stringify([bad.json(), view])).not.toContain('sk-stripe-TOPSECRET');
+    delete process.env.STRIPE_API_KEY;
+    await app.close();
+  });
+
   it('GET mostra provedores/tarefas sem expor chave; PUT valida, persiste e audita', async () => {
     const { app } = await buildApp();
     const initial = (await app.inject({ method: 'GET', url: '/admin/llm' })).json();
@@ -179,6 +218,21 @@ describe('uso e custo por sessão', () => {
     await app.inject({ method: 'PUT', url: '/admin/llm', payload: { budget: { monthlyUsd: 0, action: 'block' } } });
     const { audio } = await recordExtensionChunk(app);
     expect(audio.json()).toMatchObject({ transcribed: false, error: 'budget_exceeded' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('teto em block com modelo sem tarifa recusa a transcrição offline (unpriced_model)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ text: 'x' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const { app } = await buildApp();
+    await app.inject({
+      method: 'PUT',
+      url: '/admin/llm',
+      payload: { budget: { monthlyUsd: 5, action: 'block' }, routes: { transcription_offline: { provider: 'openrouter', model: 'google/gemini-x-audio' } } },
+    });
+    const { audio } = await recordExtensionChunk(app);
+    expect(audio.json()).toMatchObject({ transcribed: false, error: 'unpriced_model' });
     expect(fetchMock).not.toHaveBeenCalled();
     await app.close();
   });

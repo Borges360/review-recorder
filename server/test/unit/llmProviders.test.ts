@@ -40,11 +40,18 @@ describe('capacidades por provedor', () => {
     expect(() => getTranscriber('openrouter').realtime(r, {} as never)).toThrow(UnsupportedCapabilityError);
   });
 
-  it('aceita só nomes *_API_KEY como referência de chave', () => {
-    expect(isValidKeyRef('OPENAI_API_KEY')).toBe(true);
-    expect(isValidKeyRef('MY_PROJECT_API_KEY')).toBe(true);
-    expect(isValidKeyRef('DATABASE_URL')).toBe(false);
-    expect(isValidKeyRef('sk-live-abc_API_KEY')).toBe(false);
+  it('referência de chave: só a variável padrão do provedor ou nomes pré-declarados no ambiente', () => {
+    expect(isValidKeyRef('openai', 'OPENAI_API_KEY', {})).toBe(true);
+    // chave de outro provedor ou de outro serviço não pode ser apontada pelo admin
+    expect(isValidKeyRef('openai', 'ANTHROPIC_API_KEY', {})).toBe(false);
+    expect(isValidKeyRef('openai', 'STRIPE_API_KEY', {})).toBe(false);
+    expect(isValidKeyRef('openai', 'DATABASE_URL', {})).toBe(false);
+    expect(isValidKeyRef('openai', 'sk-live-abc_API_KEY', {})).toBe(false);
+    // nomes extras só valem quando o operador os declara para aquele provedor
+    const env = { LLM_KEY_REFS_OPENAI: 'TEAM_OPENAI_API_KEY, DATABASE_URL' };
+    expect(isValidKeyRef('openai', 'TEAM_OPENAI_API_KEY', env)).toBe(true);
+    expect(isValidKeyRef('openai', 'DATABASE_URL', env)).toBe(false);
+    expect(isValidKeyRef('anthropic', 'TEAM_OPENAI_API_KEY', env)).toBe(false);
   });
 });
 
@@ -142,6 +149,24 @@ describe('tarefa de texto (resumo): payload e parsing por provedor', () => {
     }
   });
 
+  it('esforço de raciocínio: parâmetro certo por provedor, e nada é enviado sem esforço', () => {
+    const anthropic = buildTextHttpRequest(route('anthropic', 'claude-haiku-5-5', 'https://api.anthropic.com/v1'), SECRET, { ...req, effort: 'high' });
+    expect(anthropic.body).toMatchObject({ output_config: { effort: 'high' }, max_tokens: 500 + 8192 });
+    expect(anthropic.body).not.toHaveProperty('reasoning_effort');
+    const openai = buildTextHttpRequest(route('openai', 'o4-mini', 'https://api.openai.com/v1'), SECRET, { ...req, effort: 'low' });
+    expect(openai.body).toMatchObject({ reasoning_effort: 'low', max_completion_tokens: 500 + 1024 });
+    expect(openai.body).not.toHaveProperty('reasoning');
+    const openrouter = buildTextHttpRequest(route('openrouter', 'openai/o4-mini', 'https://openrouter.ai/api/v1'), SECRET, { ...req, effort: 'medium' });
+    expect(openrouter.body).toMatchObject({ reasoning: { effort: 'medium' }, max_completion_tokens: 500 + 4096 });
+    expect(openrouter.body).not.toHaveProperty('reasoning_effort');
+    for (const provider of ['anthropic', 'openai', 'openrouter'] as const) {
+      const body = buildTextHttpRequest(route(provider, 'm', 'https://x.test/v1'), SECRET, req).body;
+      expect(body).not.toHaveProperty('reasoning');
+      expect(body).not.toHaveProperty('reasoning_effort');
+      expect(body).not.toHaveProperty('output_config');
+    }
+  });
+
   it('extrai texto e tokens de cada formato de resposta', () => {
     expect(
       parseTextResponse('anthropic', {
@@ -155,6 +180,8 @@ describe('tarefa de texto (resumo): payload e parsing por provedor', () => {
         usage: { prompt_tokens: 80, completion_tokens: 20 },
       }),
     ).toEqual({ text: 'resumo', inputTokens: 80, outputTokens: 20 });
+    expect(parseTextResponse('openai', { choices: [{ message: { content: '' }, finish_reason: 'length' }] })).toMatchObject({ text: '', stopReason: 'length' });
+    expect(parseTextResponse('anthropic', { content: [{ type: 'thinking' }], stop_reason: 'max_tokens' })).toMatchObject({ text: '', stopReason: 'max_tokens' });
   });
 
   it('completeText propaga erro HTTP sem a chave e exige chave', async () => {

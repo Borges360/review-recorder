@@ -290,10 +290,10 @@ export class SessionManager {
       const transcriptPath = active.artifacts.getTranscriptPath();
       const hasTranscripts = existsSync(transcriptPath) && readFileSync(transcriptPath, 'utf8').trim().length > 0;
       if (!hasTranscripts) {
-        const spend = await this.llm.allowSpend();
+        const spend = await this.llm.allowSpend(offlineRoute);
         const offline = spend.allowed
           ? await getTranscriber(offlineRoute.provider).offline(active.artifacts.getAudioPath(), offlineRoute)
-          : { text: null, chunksProcessed: 0, error: 'budget_exceeded' };
+          : { text: null, chunksProcessed: 0, error: spend.reason ?? 'budget_exceeded' };
         if (spend.allowed) {
           await this.llm.recordUsage({
             sessionId: id,
@@ -435,6 +435,7 @@ export class SessionManager {
     const offlineRoute = this.llm.resolve('transcription_offline');
     let relative = fakeChunkSegments(safeDuration);
     let error: string | undefined;
+    let spend: Awaited<ReturnType<LlmService['allowSpend']>>;
     if (!this.config.useFakeTranscriber) {
       if (!offlineRoute.supported) {
         error = 'provider_unsupported';
@@ -442,8 +443,8 @@ export class SessionManager {
       } else if (!offlineRoute.apiKey) {
         error = 'no_api_key';
         relative = [];
-      } else if (!(await this.llm.allowSpend()).allowed) {
-        error = 'budget_exceeded';
+      } else if (!(spend = await this.llm.allowSpend(offlineRoute)).allowed) {
+        error = spend.reason ?? 'budget_exceeded';
         relative = [];
       } else {
         const result = await getTranscriber(offlineRoute.provider).offlineChunk(bytes, safeDuration, offlineRoute);
@@ -739,18 +740,23 @@ export class SessionManager {
       this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: 'no_api_key' });
       return;
     }
-    void this.llm.allowSpend().then(({ allowed }) => {
-      if (active.stopping) return;
-      if (!allowed) {
-        this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: 'budget_exceeded' });
-        return;
-      }
-      const transcriber = getTranscriber(route.provider).realtime(route, callbacks);
-      active.transcriber = transcriber;
-      active.realtimeRoute = { provider: route.provider, model: route.model };
-      void transcriber.connect().catch(() => {
-        this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: 'connect_failed' });
-      });
+    // Assigned synchronously (as before the budget feature) so no early audio is dropped; the budget
+    // check runs next to the connect and tears the socket down if the call is not allowed.
+    const transcriber = getTranscriber(route.provider).realtime(route, callbacks);
+    active.transcriber = transcriber;
+    active.realtimeRoute = { provider: route.provider, model: route.model };
+    void this.llm
+      .allowSpend(route)
+      .then((spend) => {
+        if (spend.allowed || active.stopping || active.transcriber !== transcriber) return;
+        transcriber.disconnect();
+        active.transcriber = null;
+        active.realtimeRoute = null;
+        this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: spend.reason ?? 'budget_exceeded' });
+      })
+      .catch((error) => console.warn(`Realtime budget check failed: ${String(error)}`));
+    void transcriber.connect().catch(() => {
+      this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: 'connect_failed' });
     });
   }
 

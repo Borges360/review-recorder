@@ -58,6 +58,7 @@ export interface AdminProvider {
   keyRef: string;
   defaultKeyRef: string;
   keyConfigured: boolean;
+  allowedKeyRefs?: string[];
 }
 
 export interface AdminTask {
@@ -71,6 +72,9 @@ export interface AdminTask {
   providerOptions: AdminProvider['id'][];
   defaultModels: Record<string, string | null>;
   enabled?: boolean;
+  /** False when the model has no tariff: its cost is unknown and, with a blocking budget, the call is refused. */
+  priced?: boolean;
+  effort?: 'low' | 'medium' | 'high' | null;
 }
 
 export interface Tariff {
@@ -105,7 +109,7 @@ export interface AdminUsage {
 }
 
 export interface AdminLlmPatch {
-  routes?: Record<string, { provider?: string; model?: string } | null>;
+  routes?: Record<string, { provider?: string; model?: string; effort?: 'low' | 'medium' | 'high' | null } | null>;
   keyRefs?: Record<string, string | null>;
   summaryEnabled?: boolean;
   budget?: { monthlyUsd?: number | null; action?: 'warn' | 'block' };

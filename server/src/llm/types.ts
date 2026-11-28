@@ -7,6 +7,8 @@ export const TASK_IDS: readonly TaskId[] = ['transcription_realtime', 'transcrip
 export interface RouteOverride {
   provider?: ProviderId;
   model?: string;
+  /** Reasoning effort for text tasks (OpenAI reasoning_effort, OpenRouter reasoning.effort, Anthropic output_config.effort). */
+  effort?: 'low' | 'medium' | 'high';
 }
 
 export interface Tariff {
@@ -48,6 +50,8 @@ export interface ResolvedRoute {
   baseUrl: string;
   keyRef: string;
   apiKey: string | null;
+  /** Reasoning effort for text tasks; undefined = provider default (nothing sent). */
+  effort?: 'low' | 'medium' | 'high';
   /** False when the provider cannot perform this task (for example Anthropic has no STT). */
   supported: boolean;
 }

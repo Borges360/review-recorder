@@ -73,7 +73,7 @@ describe('resolução de rota e retrocompatibilidade', () => {
   });
 
   it('a chave vem do ambiente pela referência escolhida; sem a variável a rota fica sem chave', async () => {
-    const llm = await svc({ ...KEYS, TEAM_OPENAI_API_KEY: 'sk-team-SECRET-4' });
+    const llm = await svc({ ...KEYS, TEAM_OPENAI_API_KEY: 'sk-team-SECRET-4', LLM_KEY_REFS_OPENAI: 'TEAM_OPENAI_API_KEY,MISSING_API_KEY' });
     await llm.update({ keyRefs: { openai: 'TEAM_OPENAI_API_KEY' } });
     expect(llm.resolve('transcription_offline').apiKey).toBe('sk-team-SECRET-4');
     await llm.update({ keyRefs: { openai: 'MISSING_API_KEY' } });
@@ -87,6 +87,10 @@ describe('resolução de rota e retrocompatibilidade', () => {
     const llm = await svc(KEYS);
     await expect(llm.update({ keyRefs: { openai: 'DATABASE_URL' } })).rejects.toThrow(LlmValidationError);
     await expect(llm.update({ keyRefs: { openai: 'sk-live-123' } })).rejects.toThrow(LlmValidationError);
+    // chave de outro provedor/serviço presente no ambiente não pode ser redirecionada para o host do provedor
+    await expect(llm.update({ keyRefs: { openai: 'ANTHROPIC_API_KEY' } })).rejects.toThrow(/keyRef não permitido/);
+    await expect(llm.update({ keyRefs: { anthropic: 'OPENROUTER_API_KEY' } })).rejects.toThrow(LlmValidationError);
+    expect(llm.getSettings().keyRefs).toEqual({});
     await expect(llm.update({ routes: { session_summary: { model: 'a b; rm -rf' } } })).rejects.toThrow('invalid model');
     await expect(llm.update({ routes: { nope: { model: 'x' } } as never })).rejects.toThrow('unknown task');
     await expect(llm.update({ budget: { monthlyUsd: -1 } })).rejects.toThrow(LlmValidationError);
@@ -198,6 +202,62 @@ describe('custo, tarifa versionada e orçamento', () => {
   });
 });
 
+describe('orçamento: modelo sem tarifa, falha do banco e cache', () => {
+  const now = new Date('2026-11-15T12:00:00Z');
+
+  it('em modo block, rota sem tarifa é recusada (custo desconhecido não pode furar o teto)', async () => {
+    const llm = await svc(KEYS, { now: () => now });
+    await llm.update({ budget: { monthlyUsd: 5, action: 'block' }, routes: { session_summary: { provider: 'openrouter', model: 'google/gemini-x' } } });
+    const route = llm.resolve('session_summary');
+    expect(llm.hasTariff(route)).toBe(false);
+    expect(await llm.allowSpend(route)).toMatchObject({ allowed: false, reason: 'unpriced_model' });
+    // com tarifa cadastrada passa a valer o teto normal
+    await llm.update({ tariffs: { 'openrouter/google/gemini-x': { inputUsdPerMTok: 1, outputUsdPerMTok: 2 } } });
+    expect(await llm.allowSpend(route)).toMatchObject({ allowed: true });
+    // modo warn ou sem teto não bloqueia por falta de tarifa
+    await llm.update({ tariffs: { 'openrouter/google/gemini-x': null }, budget: { action: 'warn' } });
+    expect((await llm.allowSpend(route)).allowed).toBe(true);
+    await llm.update({ budget: { monthlyUsd: null, action: 'block' } });
+    expect((await llm.allowSpend(route)).allowed).toBe(true);
+    // painel mostra quais tarefas estão sem tarifa
+    const view = await llm.view();
+    expect(view.tasks.find((t) => t.id === 'session_summary')).toMatchObject({ priced: false });
+    expect(view.tasks.find((t) => t.id === 'transcription_offline')).toMatchObject({ priced: true });
+  });
+
+  it('resumo com modelo sem tarifa e teto em block falha com unpriced_model sem chamar a rede', async () => {
+    const fetchImpl = vi.fn();
+    const llm = await svc(KEYS, { now: () => now, fetchImpl: fetchImpl as never });
+    await llm.update({ summaryEnabled: true, budget: { monthlyUsd: 5, action: 'block' }, routes: { session_summary: { provider: 'anthropic', model: 'claude-futuro-9' } } });
+    await expect(llm.summarizeTimeline('s', [])).rejects.toMatchObject({ code: 'unpriced_model' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('falha ao ler o uso não derruba o caminho da gravação: libera com aviso', async () => {
+    const persistence = new MemoryLlmPersistence();
+    vi.spyOn(persistence, 'listUsage').mockRejectedValue(new Error('db down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const llm = await svc(KEYS, { persistence, now: () => now });
+    await llm.update({ budget: { monthlyUsd: 1, action: 'block' } });
+    await expect(llm.allowSpend(llm.resolve('transcription_offline'))).resolves.toMatchObject({ allowed: true, degraded: true });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('o gasto do mês é lido uma vez e atualizado por incremento (sem varrer o mês a cada chamada)', async () => {
+    const persistence = new MemoryLlmPersistence();
+    const listUsage = vi.spyOn(persistence, 'listUsage');
+    const llm = await svc(KEYS, { persistence, now: () => now });
+    await llm.update({ budget: { monthlyUsd: 0.05, action: 'block' } });
+    const route = llm.resolve('transcription_offline');
+    for (let i = 0; i < 5; i += 1) await llm.allowSpend(route);
+    expect(listUsage).toHaveBeenCalledTimes(1);
+    await llm.recordUsage({ sessionId: 's', task: 'transcription_offline', provider: 'openai', model: 'gpt-4o-transcribe', audioSeconds: 600 });
+    expect(listUsage).toHaveBeenCalledTimes(1);
+    expect(await llm.allowSpend(route)).toMatchObject({ allowed: false, reason: 'budget_exceeded' });
+  });
+});
+
 describe('persistência e auditoria', () => {
   let dir: string;
   beforeEach(() => {
@@ -266,5 +326,38 @@ describe('resumo opcional da timeline', () => {
 
     await keyed.update({ budget: { monthlyUsd: 0, action: 'block' } });
     await expect(keyed.summarizeTimeline('s', timeline)).rejects.toMatchObject({ code: 'budget_exceeded' });
+  });
+
+  it('resposta vazia (raciocínio consumiu os tokens) vira upstream_error, é cobrada e não devolve resumo', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '' }, finish_reason: 'length' }], usage: { prompt_tokens: 300, completion_tokens: 1500 } }),
+    });
+    const llm = await svc(KEYS, { fetchImpl: fetchImpl as never });
+    await llm.update({ summaryEnabled: true });
+    const error = await llm.summarizeTimeline('s9', timeline).catch((e) => e);
+    expect(error).toBeInstanceOf(LlmTaskError);
+    expect(error).toMatchObject({ code: 'upstream_error' });
+    expect(error.message).toMatch(/vazio \(length\)/);
+    const usage = await llm.sessionUsage('s9');
+    expect(usage.calls).toBe(1);
+    expect(usage.outputTokens).toBe(1500);
+    expect(usage.records[0]!.ok).toBe(false);
+  });
+
+  it('esforço escolhido no painel vai no corpo certo de cada provedor; só vale para o resumo', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'ok' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+    });
+    const llm = await svc(KEYS, { fetchImpl: fetchImpl as never });
+    await llm.update({ summaryEnabled: true, routes: { session_summary: { provider: 'openrouter', model: 'openai/o4-mini', effort: 'high' } } });
+    await llm.summarizeTimeline('s', timeline);
+    expect(JSON.parse(fetchImpl.mock.calls[0]![1].body)).toMatchObject({ reasoning: { effort: 'high' } });
+    expect((await llm.view()).tasks.find((t) => t.id === 'session_summary')).toMatchObject({ effort: 'high' });
+    await expect(llm.update({ routes: { session_summary: { effort: 'turbo' as never } } })).rejects.toThrow(LlmValidationError);
+    await expect(llm.update({ routes: { transcription_offline: { effort: 'low' } } })).rejects.toThrow(/effort/);
+    await llm.update({ routes: { session_summary: { effort: null } } });
+    expect(llm.resolve('session_summary').effort).toBeUndefined();
   });
 });

@@ -4,6 +4,8 @@ export type FetchLike = typeof fetch;
 
 export interface TextCompletionResult {
   text: string;
+  /** Why the provider stopped (finish_reason / stop_reason), when reported. */
+  stopReason?: string;
   inputTokens: number;
   outputTokens: number;
 }
@@ -12,7 +14,12 @@ export interface TextRequest {
   system: string;
   user: string;
   maxTokens: number;
+  /** Optional reasoning effort. Only sent when set, so non-reasoning models keep working. */
+  effort?: 'low' | 'medium' | 'high';
 }
+
+/** Extra output tokens so reasoning does not eat the visible answer budget. */
+const EFFORT_HEADROOM: Record<'low' | 'medium' | 'high', number> = { low: 1024, medium: 4096, high: 8192 };
 
 export const ANTHROPIC_VERSION = '2023-06-01';
 
@@ -23,6 +30,7 @@ export function buildTextHttpRequest(
   req: TextRequest,
 ): { url: string; headers: Record<string, string>; body: Record<string, unknown> } {
   const base = route.baseUrl.replace(/\/+$/, '');
+  const maxTokens = req.maxTokens + (req.effort ? EFFORT_HEADROOM[req.effort] : 0);
   if (route.provider === 'anthropic') {
     return {
       url: `${base}/messages`,
@@ -33,9 +41,10 @@ export function buildTextHttpRequest(
       },
       body: {
         model: route.model,
-        max_tokens: req.maxTokens,
+        max_tokens: maxTokens,
         system: req.system,
         messages: [{ role: 'user', content: req.user }],
+        ...(req.effort ? { output_config: { effort: req.effort } } : {}),
       },
     };
   }
@@ -45,11 +54,16 @@ export function buildTextHttpRequest(
     headers: { Authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: {
       model: route.model,
-      max_completion_tokens: req.maxTokens,
+      max_completion_tokens: maxTokens,
       messages: [
         { role: 'system', content: req.system },
         { role: 'user', content: req.user },
       ],
+      ...(req.effort
+        ? route.provider === 'openrouter'
+          ? { reasoning: { effort: req.effort } }
+          : { reasoning_effort: req.effort }
+        : {}),
     },
   };
 }
@@ -64,6 +78,7 @@ export function parseTextResponse(provider: ResolvedRoute['provider'], data: unk
       .join('');
     return {
       text,
+      stopReason: typeof d?.stop_reason === 'string' ? d.stop_reason : undefined,
       inputTokens: Number(d?.usage?.input_tokens ?? 0),
       outputTokens: Number(d?.usage?.output_tokens ?? 0),
     };
@@ -71,6 +86,7 @@ export function parseTextResponse(provider: ResolvedRoute['provider'], data: unk
   const text = d?.choices?.[0]?.message?.content;
   return {
     text: typeof text === 'string' ? text : '',
+    stopReason: typeof d?.choices?.[0]?.finish_reason === 'string' ? d.choices[0].finish_reason : undefined,
     inputTokens: Number(d?.usage?.prompt_tokens ?? 0),
     outputTokens: Number(d?.usage?.completion_tokens ?? 0),
   };

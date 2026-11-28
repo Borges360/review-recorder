@@ -3,7 +3,9 @@ import { resolveTranscriptionConfig, secureBaseUrl } from '../voice/transcriptio
 import { MemoryLlmPersistence, type LlmPersistence } from './persistence.js';
 import {
   PROVIDERS,
+  EFFORT_LEVELS,
   TASK_LABELS,
+  allowedKeyRefs,
   defaultModelFor,
   isValidKeyRef,
   isValidModel,
@@ -37,6 +39,7 @@ export type LlmErrorCode =
   | 'provider_unsupported'
   | 'no_api_key'
   | 'budget_exceeded'
+  | 'unpriced_model'
   | 'upstream_error';
 
 export class LlmTaskError extends Error {
@@ -49,7 +52,7 @@ export class LlmTaskError extends Error {
 }
 
 export interface SettingsPatch {
-  routes?: Partial<Record<TaskId, { provider?: ProviderId; model?: string } | null>>;
+  routes?: Partial<Record<TaskId, { provider?: ProviderId; model?: string; effort?: 'low' | 'medium' | 'high' | null } | null>>;
   keyRefs?: Partial<Record<ProviderId, string | null>>;
   summaryEnabled?: boolean;
   budget?: { monthlyUsd?: number | null; action?: 'warn' | 'block' };
@@ -73,6 +76,18 @@ export interface BudgetStatus {
   spentUsd: number;
   exceeded: boolean;
 }
+
+export interface SpendDecision {
+  allowed: boolean;
+  status: BudgetStatus;
+  /** Why a call was refused: monthly ceiling reached, or the model has no tariff so its cost cannot be bounded. */
+  reason?: 'budget_exceeded' | 'unpriced_model';
+  /** True when usage could not be read and the decision fell open. */
+  degraded?: boolean;
+}
+
+/** Month-to-date spend is cached for a short time so per-chunk checks do not scan the whole month. */
+const SPEND_CACHE_TTL_MS = 30_000;
 
 export interface LlmServiceOptions {
   persistence?: LlmPersistence;
@@ -126,6 +141,8 @@ export class LlmService {
   private readonly env: NodeJS.ProcessEnv;
   private readonly fetchImpl: FetchLike;
   private readonly now: () => Date;
+  private spendCache: { month: string; spentUsd: number; loadedAt: number } | null = null;
+  private spendLoad: Promise<number> | null = null;
 
   private constructor(settings: StoredLlmSettings, opts: Required<Omit<LlmServiceOptions, 'persistence'>> & { persistence: LlmPersistence }) {
     this.settings = settings;
@@ -204,6 +221,7 @@ export class LlmService {
       baseUrl: this.baseUrl(provider),
       keyRef,
       apiKey: this.env[keyRef]?.trim() || null,
+      effort: task === 'session_summary' ? override.effort : undefined,
       supported: providerSupportsTask(provider, task) && model !== '',
     };
   }
@@ -245,6 +263,15 @@ export class LlmService {
         if (typeof value.model !== 'string' || !isValidModel(value.model)) throw new LlmValidationError('invalid model name');
         route.model = value.model;
       }
+      if (value.effort !== undefined) {
+        if (value.effort === null) {
+          delete route.effort;
+        } else {
+          if (taskId !== 'session_summary') throw new LlmValidationError('effort só se aplica a tarefas de texto (resumo da sessão)');
+          if (!EFFORT_LEVELS.includes(value.effort)) throw new LlmValidationError('effort must be low, medium or high');
+          route.effort = value.effort;
+        }
+      }
       next.routes[taskId] = route;
       changes.push(`routes.${task}`);
     }
@@ -254,8 +281,11 @@ export class LlmService {
       if (ref === null || ref === undefined || ref === '') {
         delete next.keyRefs[provider as ProviderId];
       } else {
-        if (typeof ref !== 'string' || !isValidKeyRef(ref)) {
-          throw new LlmValidationError('keyRef must be the NAME of an environment variable ending in _API_KEY');
+        if (typeof ref !== 'string' || !isValidKeyRef(provider as ProviderId, ref, this.env)) {
+          throw new LlmValidationError(
+            `keyRef não permitido para ${provider}: use ${allowedKeyRefs(provider as ProviderId, this.env).join(' ou ')} ` +
+              `(outros nomes precisam ser declarados em LLM_KEY_REFS_${provider.toUpperCase()})`,
+          );
         }
         next.keyRefs[provider as ProviderId] = ref;
       }
@@ -347,6 +377,9 @@ export class LlmService {
       ok: input.ok ?? true,
     };
     await this.persistence.appendUsage(record).catch((e) => console.warn(`LLM usage write failed: ${String(e)}`));
+    if (this.spendCache && this.spendCache.month === utcMonth(this.now()) && record.costUsd !== null) {
+      this.spendCache.spentUsd = Math.round((this.spendCache.spentUsd + record.costUsd) * 1e6) / 1e6;
+    }
     return record;
   }
 
@@ -356,17 +389,63 @@ export class LlmService {
     return rows.filter((r) => r.at < end.toISOString());
   }
 
-  async budgetStatus(): Promise<BudgetStatus> {
+  private async monthSpend(fresh: boolean): Promise<number> {
+    const month = utcMonth(this.now());
+    const nowMs = this.now().getTime();
+    const cache = this.spendCache;
+    if (!fresh && cache && cache.month === month && nowMs - cache.loadedAt < SPEND_CACHE_TTL_MS) return cache.spentUsd;
+    if (!this.spendLoad) {
+      this.spendLoad = this.monthRecords(month)
+        .then((rows) => {
+          const spentUsd = Math.round(rows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0) * 1e6) / 1e6;
+          this.spendCache = { month, spentUsd, loadedAt: nowMs };
+          return spentUsd;
+        })
+        .finally(() => {
+          this.spendLoad = null;
+        });
+    }
+    return this.spendLoad;
+  }
+
+  async budgetStatus(options: { fresh?: boolean } = {}): Promise<BudgetStatus> {
     const { monthlyUsd, action } = this.settings.budget;
-    const rows = await this.monthRecords(utcMonth(this.now()));
-    const spentUsd = Math.round(rows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0) * 1e6) / 1e6;
+    const spentUsd = await this.monthSpend(options.fresh ?? false);
     return { monthlyUsd, action, spentUsd, exceeded: monthlyUsd !== null && spentUsd >= monthlyUsd };
   }
 
-  /** True when a new billable call may proceed (budget off, under the ceiling, or warn-only). */
-  async allowSpend(): Promise<{ allowed: boolean; status: BudgetStatus }> {
-    const status = await this.budgetStatus();
-    return { allowed: !(status.exceeded && status.action === 'block'), status };
+  /** True when the route has a price, so its cost can count against the budget. */
+  hasTariff(route: { provider: ProviderId; model: string }): boolean {
+    return findTariff(this.settings.tariffs, route.provider, route.model) !== null;
+  }
+
+  /**
+   * Whether a new billable call may proceed (budget off, under the ceiling, or warn-only).
+   * With a blocking ceiling, a route without a tariff is refused too: its cost would count as
+   * zero and the ceiling would silently stop working. A failing usage store never breaks
+   * recording: the decision falls open with a warning (usage writes are also failure-tolerant).
+   */
+  async allowSpend(route?: { provider: ProviderId; model: string }): Promise<SpendDecision> {
+    const { monthlyUsd, action } = this.settings.budget;
+    if (route && monthlyUsd !== null && action === 'block' && !this.hasTariff(route)) {
+      return {
+        allowed: false,
+        reason: 'unpriced_model',
+        status: { monthlyUsd, action, spentUsd: this.spendCache?.spentUsd ?? 0, exceeded: false },
+      };
+    }
+    try {
+      const status = await this.budgetStatus();
+      const blocked = status.exceeded && status.action === 'block';
+      return { allowed: !blocked, status, ...(blocked ? { reason: 'budget_exceeded' as const } : {}) };
+    } catch (error) {
+      console.warn(`LLM budget check failed, allowing the call: ${String(error)}`);
+      return {
+        allowed: true,
+        degraded: true,
+        status: { monthlyUsd, action, spentUsd: this.spendCache?.spentUsd ?? 0, exceeded: false },
+      };
+    }
   }
 
   async usageReport(month: string = utcMonth(this.now())) {
@@ -431,15 +510,21 @@ export class LlmService {
     const route = this.resolve('session_summary');
     if (!route.supported) throw new LlmTaskError('provider_unsupported', 'Provedor sem suporte a tarefas de texto');
     if (!route.apiKey) throw new LlmTaskError('no_api_key', `Variável ${route.keyRef} não está configurada`);
-    const spend = await this.allowSpend();
-    if (!spend.allowed) throw new LlmTaskError('budget_exceeded', 'Orçamento mensal esgotado');
+    const spend = await this.allowSpend(route);
+    if (!spend.allowed) {
+      throw spend.reason === 'unpriced_model'
+        ? new LlmTaskError('unpriced_model', `Modelo ${route.provider}/${route.model} sem tarifa: cadastre a tarifa no painel para usar com orçamento em modo bloqueio`)
+        : new LlmTaskError('budget_exceeded', 'Orçamento mensal esgotado');
+    }
 
     try {
       const result = await completeText(
         route,
-        { system: SUMMARY_SYSTEM_PROMPT, user: timelineToPrompt(timeline), maxTokens: 1500 },
+        { system: SUMMARY_SYSTEM_PROMPT, user: timelineToPrompt(timeline), maxTokens: 1500, effort: route.effort },
         this.fetchImpl,
       );
+      const summary = result.text.trim();
+      // Tokens were consumed even when the answer is empty (e.g. reasoning used the whole budget): bill it, but fail.
       const usage = await this.recordUsage({
         sessionId,
         task: 'session_summary',
@@ -447,9 +532,18 @@ export class LlmService {
         model: route.model,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
+        ok: summary !== '',
       });
-      return { summary: result.text.trim(), provider: route.provider, model: route.model, costUsd: usage.costUsd };
+      if (summary === '') {
+        throw new LlmTaskError(
+          'upstream_error',
+          `O modelo devolveu resumo vazio${result.stopReason ? ` (${result.stopReason})` : ''}: ` +
+            'modelos de raciocínio podem gastar todo o limite de tokens pensando; reduza o esforço ou troque o modelo no painel',
+        );
+      }
+      return { summary, provider: route.provider, model: route.model, costUsd: usage.costUsd };
     } catch (error) {
+      if (error instanceof LlmTaskError) throw error;
       await this.recordUsage({ sessionId, task: 'session_summary', provider: route.provider, model: route.model, ok: false });
       throw new LlmTaskError('upstream_error', error instanceof Error ? error.message : String(error));
     }
@@ -458,7 +552,7 @@ export class LlmService {
   // ---- admin view (never contains key values) ---------------------------------------
 
   async view() {
-    const budget = await this.budgetStatus();
+    const budget = await this.budgetStatus({ fresh: true });
     const tariffs: Record<string, Tariff & { custom: boolean }> = {};
     for (const [key, t] of Object.entries(DEFAULT_TARIFFS)) tariffs[key] = { ...t, custom: false };
     for (const [key, t] of Object.entries(this.settings.tariffs)) tariffs[key] = { ...t, custom: true };
@@ -470,6 +564,7 @@ export class LlmService {
         keyRef: this.keyRef(id),
         defaultKeyRef: PROVIDERS[id].defaultKeyRef,
         keyConfigured: this.keyConfigured(id),
+        allowedKeyRefs: allowedKeyRefs(id, this.env),
       })),
       tasks: TASK_IDS.map((task) => {
         const route = this.resolve(task);
@@ -481,6 +576,8 @@ export class LlmService {
           supported: route.supported,
           keyConfigured: Boolean(route.apiKey),
           overridden: Boolean(this.settings.routes[task]),
+          priced: this.hasTariff(route),
+          ...(task === 'session_summary' ? { effort: route.effort ?? null } : {}),
           providerOptions: providersForTask(task),
           defaultModels: Object.fromEntries(providersForTask(task).map((p) => [p, defaultModelFor(p, task)])),
           ...(task === 'session_summary' ? { enabled: this.settings.summaryEnabled } : {}),
