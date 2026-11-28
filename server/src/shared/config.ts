@@ -40,6 +40,7 @@ export function loadConfig(): AppConfig {
   const browserHeadless = process.env.BROWSER_HEADLESS === 'true';
   const host = process.env.HOST ?? '127.0.0.1';
   const apiToken = process.env.API_TOKEN?.trim() || null;
+  const adminToken = process.env.ADMIN_TOKEN?.trim() || null;
   const databaseUrl = process.env.DATABASE_URL?.trim() || null;
   const s3Endpoint = process.env.S3_ENDPOINT?.trim() || '';
   const s3Bucket = process.env.S3_BUCKET?.trim() || '';
@@ -74,6 +75,7 @@ export function loadConfig(): AppConfig {
     mockBrowser,
     browserHeadless,
     apiToken,
+    adminToken,
     databaseUrl,
     s3,
   };

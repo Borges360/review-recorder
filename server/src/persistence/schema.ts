@@ -51,4 +51,35 @@ CREATE TABLE IF NOT EXISTS evidence (
   speech_segment_id text,
   active_elapsed_ms integer NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key text PRIMARY KEY,
+  value jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS llm_usage (
+  id text PRIMARY KEY,
+  at timestamptz NOT NULL,
+  session_id text,
+  task text NOT NULL,
+  provider text NOT NULL,
+  model text NOT NULL,
+  audio_seconds double precision NOT NULL DEFAULT 0,
+  input_tokens integer NOT NULL DEFAULT 0,
+  output_tokens integer NOT NULL DEFAULT 0,
+  cost_usd double precision,
+  tariff_version text NOT NULL,
+  ok boolean NOT NULL DEFAULT true
+);
+
+CREATE INDEX IF NOT EXISTS llm_usage_at ON llm_usage (at);
+CREATE INDEX IF NOT EXISTS llm_usage_session ON llm_usage (session_id);
+
+CREATE TABLE IF NOT EXISTS llm_audit (
+  id bigserial PRIMARY KEY,
+  at timestamptz NOT NULL,
+  action text NOT NULL,
+  changes jsonb NOT NULL
+);
 `;

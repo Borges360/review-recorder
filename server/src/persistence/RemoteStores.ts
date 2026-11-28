@@ -27,6 +27,11 @@ export class RemoteStores {
     this.hasObjectStore = Boolean(config.s3);
   }
 
+  /** Shared Postgres pool (null in local file mode); used by the LLM settings/usage store. */
+  get pgPool(): pg.Pool | null {
+    return this.pool;
+  }
+
   async init(): Promise<void> {
     if (this.config.databaseUrl) {
       this.pool = new pg.Pool({ connectionString: this.config.databaseUrl });

@@ -23,7 +23,18 @@ export interface TranscriberCallbacks {
 /** Commit buffered audio periodically — gpt-live-transcribe requires explicit commits (no server VAD). */
 const AUDIO_COMMIT_INTERVAL_MS = 30_000;
 
-export class OpenAITranscriber {
+export const OPENAI_REALTIME_TRANSCRIPTION_MODEL = 'gpt-live-transcribe';
+
+/** Streaming transcriber contract shared by the real adapter and FakeTranscriber. */
+export interface RealtimeTranscriber {
+  connect(): Promise<void>;
+  appendAudio(pcm: Buffer): void;
+  commitBuffer?(): void;
+  getAudioMsWritten(): number;
+  disconnect(): void;
+}
+
+export class OpenAITranscriber implements RealtimeTranscriber {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private closed = false;
@@ -33,6 +44,7 @@ export class OpenAITranscriber {
   constructor(
     private readonly apiKey: string,
     private readonly callbacks: TranscriberCallbacks,
+    private readonly model: string = OPENAI_REALTIME_TRANSCRIPTION_MODEL,
   ) {}
 
   async connect(): Promise<void> {
@@ -78,7 +90,7 @@ export class OpenAITranscriber {
         audio: {
           input: {
             format: { type: 'audio/pcm', rate: 24000 },
-            transcription: { model: 'gpt-live-transcribe', languages: ['pt'], delay: 'low' },
+            transcription: { model: this.model, languages: ['pt'], delay: 'low' },
             turn_detection: null,
           },
         },

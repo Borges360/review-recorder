@@ -152,6 +152,8 @@ export interface AppConfig {
   browserHeadless: boolean;
   /** When set, every route except health, demo, the history page and its INTEIRO stylesheets requires this bearer token. */
   apiToken: string | null;
+  /** When set, /admin/* requires this bearer instead of API_TOKEN (admin profile of a single-tenant app). */
+  adminToken: string | null;
   databaseUrl: string | null;
   s3: S3Config | null;
 }

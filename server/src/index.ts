@@ -10,6 +10,8 @@ import { MirrorSessionRepository, SessionRepository } from './persistence/Sessio
 import { RemoteStores } from './persistence/RemoteStores.js';
 import { SessionManager } from './session/SessionManager.js';
 import { registerRoutes } from './app/routes.js';
+import { registerAdminRoutes } from './app/adminRoutes.js';
+import { createLlmService } from './llm/factory.js';
 import { registerWebSockets } from './app/websocket.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -27,6 +29,8 @@ export async function buildApp() {
   app.addHook('onRequest', async (req, reply) => {
     if (!config.apiToken) return;
     const path = req.url.split('?')[0] ?? req.url;
+    // /admin/* has its own guard (ADMIN_TOKEN, or API_TOKEN when none).
+    if (path.startsWith('/admin/')) return;
     if (
       path === '/health' ||
       path === '/' ||
@@ -46,9 +50,11 @@ export async function buildApp() {
   const repo = remote.hasDatabase
     ? new MirrorSessionRepository(config.sessionsDir, remote)
     : new SessionRepository(config.sessionsDir);
-  const sessions = new SessionManager(config, repo, remote);
+  const llm = await createLlmService(config, remote.pgPool);
+  const sessions = new SessionManager(config, repo, remote, llm);
 
   await registerRoutes(app, sessions, config);
+  await registerAdminRoutes(app, sessions, config);
   await registerWebSockets(app, sessions);
 
   // Demo app static files

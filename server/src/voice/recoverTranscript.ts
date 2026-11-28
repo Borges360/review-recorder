@@ -6,8 +6,8 @@ import { SessionRepository } from '../persistence/SessionRepository.js';
 import { SessionCompiler } from '../export/SessionCompiler.js';
 import { EVENT_TYPES } from '../shared/events.js';
 import { newId } from '../timeline/CorrelationEngine.js';
-import { transcribeOfflineDetailed } from './OfflineTranscriber.js';
-import { getTranscriptionConfig } from './transcriptionProvider.js';
+import { getTranscriber } from './Transcriber.js';
+import { LlmService } from '../llm/LlmService.js';
 
 export interface RecoverTranscriptResult {
   sessionId: string;
@@ -22,16 +22,19 @@ export async function recoverSessionTranscript(
   sessionId: string,
   config: AppConfig,
   repo: SessionRepository,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; llm?: LlmService } = {},
 ): Promise<RecoverTranscriptResult> {
-  const transcription = getTranscriptionConfig(config);
+  const llm = options.llm ?? LlmService.envOnly();
+  const route = llm.resolve('transcription_offline');
   const session = repo.getSession(sessionId);
   if (!session?.outputDir) {
     throw new Error('Session not found or has no output directory');
   }
-  if (!transcription.apiKey) {
-    const requiredKey = transcription.provider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY';
-    throw new Error(`${requiredKey} is required for offline transcription recovery`);
+  if (!route.supported) {
+    throw new Error(`${route.provider} does not support offline transcription; choose OpenAI or OpenRouter`);
+  }
+  if (!route.apiKey) {
+    throw new Error(`${route.keyRef} is required for offline transcription recovery`);
   }
 
   const outputDir = resolveSessionOutputDir(config.sessionsDir, session.outputDir);
@@ -60,7 +63,19 @@ export async function recoverSessionTranscript(
     };
   }
 
-  const result = await transcribeOfflineDetailed(audioPath, transcription.apiKey, transcription);
+  const spend = await llm.allowSpend();
+  if (!spend.allowed) {
+    throw new Error('Monthly LLM budget exhausted (budget_exceeded)');
+  }
+  const result = await getTranscriber(route.provider).offline(audioPath, route);
+  await llm.recordUsage({
+    sessionId,
+    task: 'transcription_offline',
+    provider: route.provider,
+    model: route.model,
+    audioSeconds: result.audioSeconds ?? 0,
+    ok: !result.error,
+  });
   if (!result.text?.trim()) {
     throw new Error(result.error ?? 'Offline transcription returned empty text');
   }
