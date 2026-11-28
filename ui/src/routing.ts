@@ -7,6 +7,24 @@ export function getSessionIdFromPath(pathname = location.pathname): string | nul
   return match?.[1] ?? null;
 }
 
+export const ADMIN_PATH = '/admin/llm';
+
+export function isAdminPath(pathname = location.pathname): boolean {
+  return pathname.replace(/\/+$/, '') === ADMIN_PATH;
+}
+
+export function useAdminRoute(): boolean {
+  const [admin, setAdmin] = useState(() => isAdminPath());
+
+  useEffect(() => {
+    const sync = () => setAdmin(isAdminPath());
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, []);
+
+  return admin;
+}
+
 export function sessionPath(sessionId: string): string {
   return `/sessions/${sessionId}`;
 }

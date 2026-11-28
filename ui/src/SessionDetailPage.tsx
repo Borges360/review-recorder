@@ -42,6 +42,61 @@ function downloadReviewMarkdown(content: string, filename = 'REVIEW.md'): void {
   URL.revokeObjectURL(url);
 }
 
+function SessionSummary({ sessionId }: { sessionId: string }) {
+  const [enabled, setEnabled] = useState(false);
+  const [text, setText] = useState<string | null>(null);
+  const [meta, setMeta] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.getConfig().then((c) => !cancelled && setEnabled(Boolean(c.summaryEnabled))).catch(() => {});
+    void api
+      .getSessionSummary(sessionId)
+      .then((s) => {
+        if (cancelled) return;
+        setText(s.summary);
+        setMeta(`${s.provider} / ${s.model}`);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  if (!enabled && !text) return null;
+
+  const generate = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const s = await api.createSessionSummary(sessionId);
+      setText(s.summary);
+      setMeta(`${s.provider} / ${s.model}`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="detail-section">
+      <div className="review-header">
+        <h2>Resumo{meta ? ` (${meta})` : ''}</h2>
+        {enabled && (
+          <button className="in-button in-button--secondary in-button--sm" onClick={() => void generate()} disabled={busy}>
+            {busy ? 'Gerando...' : text ? 'Gerar de novo' : 'Gerar resumo'}
+          </button>
+        )}
+      </div>
+      {error && <div className="alert">{error}</div>}
+      {text && <div className="summary-box">{text}</div>}
+    </div>
+  );
+}
+
 export function SessionDetailView({
   session,
   outputDir,
@@ -92,6 +147,8 @@ export function SessionDetailView({
           Artefatos em: <code>{outputDir}</code>
         </p>
       )}
+
+      <SessionSummary sessionId={session.id} />
 
       {observations.length > 0 && (
         <div className="detail-section">

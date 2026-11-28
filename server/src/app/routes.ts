@@ -3,8 +3,8 @@ import type { ExtensionClientEvent, SessionManager } from '../session/SessionMan
 import { SessionCompiler } from '../export/SessionCompiler.js';
 import type { AppConfig } from '../shared/types.js';
 import { resolveSessionOutputDir } from '../shared/config.js';
-import { getTranscriptionConfig, isTranscriptionUsable } from '../voice/transcriptionProvider.js';
-import { readFileSync, existsSync } from 'node:fs';
+import { LlmTaskError } from '../llm/LlmService.js';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 function badRequest(reply: FastifyReply, message: string) {
@@ -26,12 +26,17 @@ export async function registerRoutes(
 ): Promise<void> {
   app.get('/health', async () => ({ ok: true }));
 
-  app.get('/config', async () => ({
-    openaiConfigured: Boolean(config.openaiApiKey),
-    transcriptionConfigured: isTranscriptionUsable(getTranscriptionConfig(config)),
-    transcriptionProvider: getTranscriptionConfig(config).provider,
-    transcriptionError: getTranscriptionConfig(config).error,
-  }));
+  app.get('/config', async () => {
+    const offline = sessions.llm.resolve('transcription_offline');
+    return {
+    // Whether the key behind the realtime / offline routes is present (never the key itself).
+    openaiConfigured: Boolean(sessions.llm.resolve('transcription_realtime').apiKey),
+    transcriptionConfigured: Boolean(offline.apiKey) && offline.supported && !offline.error,
+    transcriptionProvider: offline.error ? null : offline.provider,
+    transcriptionError: offline.error ?? null,
+    summaryEnabled: sessions.llm.summaryEnabled(),
+    };
+  });
 
   app.get<{ Querystring: { limit?: string } }>('/sessions', async (req) => {
     const parsed = Number(req.query.limit ?? 20);
@@ -181,6 +186,43 @@ export async function registerRoutes(
     const found = sessions.getExtensionEvidence(req.params.id, req.params.evidenceId);
     if (!found) return notFound(reply, 'Evidence not found');
     return reply.type('image/png').send(found.bytes);
+  });
+
+  app.get<{ Params: { id: string } }>('/sessions/:id/llm-usage', async (req, reply) => {
+    if (!sessions.getSession(req.params.id)) return notFound(reply, 'Session not found');
+    const { records, ...totals } = await sessions.llm.sessionUsage(req.params.id);
+    return { ...totals, records: records.length };
+  });
+
+  function summaryPath(sessionId: string): string | null {
+    const session = sessions.getSession(sessionId);
+    if (!session?.outputDir) return null;
+    return join(resolveSessionOutputDir(config.sessionsDir, session.outputDir), 'summary.json');
+  }
+
+  app.get<{ Params: { id: string } }>('/sessions/:id/summary', async (req, reply) => {
+    const path = summaryPath(req.params.id);
+    if (!path || !existsSync(path)) return notFound(reply, 'No summary generated');
+    return JSON.parse(readFileSync(path, 'utf8'));
+  });
+
+  // Optional text task, off by default: needs the admin to enable it in /admin/llm.
+  app.post<{ Params: { id: string } }>('/sessions/:id/summary', async (req, reply) => {
+    const path = summaryPath(req.params.id);
+    if (!path) return notFound(reply, 'Session not found or without artifacts');
+    try {
+      const timeline = (await sessions.getTimeline(req.params.id)) as unknown as Array<Record<string, unknown>>;
+      const result = await sessions.llm.summarizeTimeline(req.params.id, timeline);
+      const body = { sessionId: req.params.id, generatedAt: new Date().toISOString(), ...result };
+      writeFileSync(path, JSON.stringify(body, null, 2), 'utf8');
+      return body;
+    } catch (e) {
+      if (e instanceof LlmTaskError) {
+        const status = e.code === 'budget_exceeded' ? 429 : e.code === 'upstream_error' ? 502 : 409;
+        return reply.code(status).send({ error: e.code, message: e.message });
+      }
+      return badRequest(reply, String(e));
+    }
   });
 
   app.get<{ Params: { id: string } }>('/sessions/:id/export', async (req, reply) => {

@@ -13,13 +13,14 @@ import { SessionRepository } from '../persistence/SessionRepository.js';
 import { ArtifactStore } from '../persistence/ArtifactStore.js';
 import { globalEventBus } from '../timeline/EventBus.js';
 import { BrowserManager } from '../browser/BrowserManager.js';
-import { AudioStream, OpenAITranscriber } from '../voice/OpenAITranscriber.js';
+import { AudioStream, type RealtimeTranscriber } from '../voice/OpenAITranscriber.js';
 import { FakeTranscriber } from '../voice/FakeTranscriber.js';
 import { CorrelationEngine, TranscriptAssembler, newId } from '../timeline/CorrelationEngine.js';
 import type { ClickSplitPoint, ScreenSnapshot } from '../timeline/SpeechClickSplitter.js';
 import { SessionCompiler } from '../export/SessionCompiler.js';
-import { transcribeOfflineDetailed, transcribeWebmChunk } from '../voice/OfflineTranscriber.js';
-import { getTranscriptionConfig, isTranscriptionUsable } from '../voice/transcriptionProvider.js';
+import { getTranscriber } from '../voice/Transcriber.js';
+import { LlmService } from '../llm/LlmService.js';
+import type { ProviderId } from '../llm/types.js';
 import { asRawElement, clickablesToSnapshot, fingerprintClickables, limitClickables, toElementIdentity } from '../capture/elementIdentity.js';
 import { fakeChunkSegments, shiftChunkSegments } from '../capture/chunkTiming.js';
 import { loadClientIds, rememberClientId } from '../capture/clientIds.js';
@@ -32,6 +33,7 @@ export class SessionManager {
     private readonly config: AppConfig,
     readonly repo: SessionRepository,
     private readonly remote: RemoteStores | null = null,
+    readonly llm: LlmService = LlmService.envOnly(),
   ) {
     this.repo.markRecoverable(['RECORDING', 'PAUSED']);
   }
@@ -128,6 +130,7 @@ export class SessionManager {
       browser: null,
       audio: null,
       transcriber: null,
+      realtimeRoute: null,
       forwardingAudio: record.capture !== 'extension',
       extensionCapture: record.capture === 'extension',
       acceptedClientIds: record.capture === 'extension' ? loadClientIds(outputDir) : new Set(),
@@ -155,9 +158,7 @@ export class SessionManager {
     active.fsm.transition('PAUSED');
     active.clock.pause();
     active.forwardingAudio = false;
-    if (active.transcriber && 'commitBuffer' in active.transcriber) {
-      active.transcriber.commitBuffer();
-    }
+    active.transcriber?.commitBuffer?.();
     await active.browser?.pauseTraceChunk();
     this.emitEvent(active, EVENT_TYPES.SESSION_PAUSED, {});
     this.repo.updateSession(id, { status: 'PAUSED' });
@@ -257,8 +258,18 @@ export class SessionManager {
 
     active.fsm.transition('PROCESSING');
 
+    const realtimeAudioMs = active.transcriber?.getAudioMsWritten() ?? 0;
     active.transcriber?.disconnect();
     await active.audio?.close();
+    if (active.realtimeRoute && realtimeAudioMs > 0 && !this.config.useFakeTranscriber) {
+      void this.llm.recordUsage({
+        sessionId: id,
+        task: 'transcription_realtime',
+        provider: active.realtimeRoute.provider,
+        model: active.realtimeRoute.model,
+        audioSeconds: realtimeAudioMs / 1000,
+      });
+    }
     if (active.browser?.isOpen()) {
       const tracePath = join(active.artifacts.getRawDir(), 'trace.zip');
       await active.browser.stopTrace(tracePath);
@@ -272,18 +283,27 @@ export class SessionManager {
       wallElapsedMs = active.maxClientWallMs > 0 ? active.maxClientWallMs : wallElapsedMs;
     }
     const stoppedAt = new Date().toISOString();
-    const transcription = getTranscriptionConfig(this.config);
+    const offlineRoute = this.llm.resolve('transcription_offline');
 
-    if (isTranscriptionUsable(transcription) && !active.transcriptionQuotaError && existsSync(active.artifacts.getAudioPath())) {
+    if (offlineRoute.apiKey && offlineRoute.supported && !active.transcriptionQuotaError && existsSync(active.artifacts.getAudioPath())) {
       const { readFileSync } = await import('node:fs');
       const transcriptPath = active.artifacts.getTranscriptPath();
       const hasTranscripts = existsSync(transcriptPath) && readFileSync(transcriptPath, 'utf8').trim().length > 0;
       if (!hasTranscripts) {
-        const offline = await transcribeOfflineDetailed(
-          active.artifacts.getAudioPath(),
-          transcription.apiKey,
-          transcription,
-        );
+        const spend = await this.llm.allowSpend(offlineRoute);
+        const offline = spend.allowed
+          ? await getTranscriber(offlineRoute.provider).offline(active.artifacts.getAudioPath(), offlineRoute)
+          : { text: null, chunksProcessed: 0, error: spend.reason ?? 'budget_exceeded' };
+        if (spend.allowed) {
+          await this.llm.recordUsage({
+            sessionId: id,
+            task: 'transcription_offline',
+            provider: offlineRoute.provider,
+            model: offlineRoute.model,
+            audioSeconds: offline.audioSeconds ?? 0,
+            ok: !offline.error,
+          });
+        }
         if (offline.text?.trim()) {
           const segment = {
             id: newId('speech-offline'),
@@ -413,26 +433,39 @@ export class SessionManager {
     rememberClientId(active.artifacts.getSessionDir(), active.acceptedClientIds, clientId);
 
     const safeDuration = durationMs > 0 ? durationMs : 5000;
-    const transcription = getTranscriptionConfig(this.config);
+    const offlineRoute = this.llm.resolve('transcription_offline');
     let relative = fakeChunkSegments(safeDuration);
     let error: string | undefined;
+    let spend: Awaited<ReturnType<LlmService['allowSpend']>>;
     if (!this.config.useFakeTranscriber) {
-      if (!isTranscriptionUsable(transcription)) {
-        error = transcription.error ?? 'no_api_key';
+      if (offlineRoute.error) {
+        error = offlineRoute.error;
+        relative = [];
+      } else if (!offlineRoute.supported) {
+        error = 'provider_unsupported';
+        relative = [];
+      } else if (!offlineRoute.apiKey) {
+        error = 'no_api_key';
         relative = [];
       } else if (active.transcriptionQuotaError) {
         // Quota exhaustion is terminal for the session: no further calls, no provider switch.
         error = active.transcriptionQuotaError;
         relative = [];
+      } else if (!(spend = await this.llm.allowSpend(offlineRoute)).allowed) {
+        error = spend.reason ?? 'budget_exceeded';
+        relative = [];
       } else {
-        const result = await transcribeWebmChunk(
-          bytes,
-          transcription.apiKey,
-          safeDuration,
-          transcription,
-        );
+        const result = await getTranscriber(offlineRoute.provider).offlineChunk(bytes, safeDuration, offlineRoute);
         relative = result.segments;
         error = result.error;
+        await this.llm.recordUsage({
+          sessionId: id,
+          task: 'transcription_offline',
+          provider: offlineRoute.provider,
+          model: offlineRoute.model,
+          audioSeconds: safeDuration / 1000,
+          ok: !result.error,
+        });
         if (result.quotaExhausted && result.error) active.transcriptionQuotaError = result.error;
       }
     }
@@ -700,19 +733,38 @@ export class SessionManager {
     };
 
     if (this.config.useFakeTranscriber) {
-      active.transcriber = new FakeTranscriber(callbacks) as unknown as OpenAITranscriber;
-      void (active.transcriber as unknown as FakeTranscriber).connect();
+      const fake = new FakeTranscriber(callbacks);
+      active.transcriber = fake;
+      void fake.connect();
       return;
     }
 
-    if (!this.config.openaiApiKey) {
+    const route = this.llm.resolve('transcription_realtime');
+    if (!route.supported) {
+      // e.g. OpenRouter/Anthropic selected for realtime: audio is still recorded and transcribed offline at stop.
+      this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: 'realtime_unsupported_provider' });
+      return;
+    }
+    if (!route.apiKey) {
       this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: 'no_api_key' });
       return;
     }
-
-    active.transcriber = new OpenAITranscriber(this.config.openaiApiKey, callbacks);
-
-    void active.transcriber.connect().catch(() => {
+    // Assigned synchronously (as before the budget feature) so no early audio is dropped; the budget
+    // check runs next to the connect and tears the socket down if the call is not allowed.
+    const transcriber = getTranscriber(route.provider).realtime(route, callbacks);
+    active.transcriber = transcriber;
+    active.realtimeRoute = { provider: route.provider, model: route.model };
+    void this.llm
+      .allowSpend(route)
+      .then((spend) => {
+        if (spend.allowed || active.stopping || active.transcriber !== transcriber) return;
+        transcriber.disconnect();
+        active.transcriber = null;
+        active.realtimeRoute = null;
+        this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: spend.reason ?? 'budget_exceeded' });
+      })
+      .catch((error) => console.warn(`Realtime budget check failed: ${String(error)}`));
+    void transcriber.connect().catch(() => {
       this.emitEvent(active, EVENT_TYPES.TRANSCRIPTION_OFFLINE, { reason: 'connect_failed' });
     });
   }
@@ -951,7 +1003,8 @@ interface ActiveSession {
   evidenceSpeechLinks: Map<string, string>;
   browser: BrowserManager | null;
   audio: AudioStream | null;
-  transcriber: OpenAITranscriber | FakeTranscriber | null;
+  transcriber: RealtimeTranscriber | null;
+  realtimeRoute: { provider: ProviderId; model: string } | null;
   forwardingAudio: boolean;
   speechStartMs: number | null;
   lastScreenSnapshot: ScreenSnapshot;

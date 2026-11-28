@@ -85,6 +85,8 @@ async function describeHttpError(res: HttpErrorResponse, request: TranscriptionR
 export interface OfflineTranscriptionResult {
   text: string | null;
   chunksProcessed: number;
+  /** Seconds of audio sent to the provider (for usage/cost). */
+  audioSeconds?: number;
   error?: string;
   /** Set when the OpenRouter budget is exhausted; callers must not retry nor switch provider. */
   quotaExhausted?: true;
@@ -150,6 +152,7 @@ export async function transcribeOfflineDetailed(
     return { text: null, chunksProcessed: 0, error: String(err) };
   }
 
+  const audioSeconds = pcmChunks.reduce((sum, c) => sum + c.length, 0) / (sampleRate * channels * (bitsPerSample / 8));
   const texts: string[] = [];
   for (let i = 0; i < pcmChunks.length; i++) {
     const chunkWav = buildWavFromPcm(pcmChunks[i]!, sampleRate, channels, bitsPerSample);
@@ -160,6 +163,7 @@ export async function transcribeOfflineDetailed(
       return {
         text: texts.length ? texts.join(' ') : null,
         chunksProcessed: i,
+        audioSeconds,
         error,
         ...(quotaExhausted ? { quotaExhausted } : {}),
       };
@@ -169,6 +173,7 @@ export async function transcribeOfflineDetailed(
   return {
     text: texts.length ? texts.join(' ') : null,
     chunksProcessed: pcmChunks.length,
+    audioSeconds,
   };
 }
 

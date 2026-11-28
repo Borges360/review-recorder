@@ -16,6 +16,10 @@ body {
   padding: 32px 20px;
 }
 
+.app-wide {
+  max-width: 880px;
+}
+
 h1 {
   font-size: var(--in-type-title-size);
   font-weight: var(--in-type-title-weight);
@@ -335,4 +339,99 @@ label {
 
 .session-item.clickable:hover {
   color: var(--in-color-identity-primary);
+}
+
+.admin-link {
+  margin-top: 16px;
+}
+
+.admin-help {
+  display: block;
+  font-size: 0.8rem;
+  margin: 4px 0 12px;
+}
+
+.admin-notice {
+  border: 1px solid var(--in-color-status-success);
+  border-radius: var(--in-radius-md);
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: var(--in-color-status-success);
+}
+
+.admin-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.admin-row-main {
+  min-width: 190px;
+}
+
+.admin-input {
+  width: auto;
+  flex: 1 1 200px;
+  margin-bottom: 0;
+}
+
+.admin-task {
+  margin-bottom: 18px;
+}
+
+.admin-status.ok {
+  color: var(--in-color-status-success);
+  margin-left: 8px;
+}
+
+.admin-status.missing {
+  color: var(--in-color-status-warning);
+  margin-left: 8px;
+}
+
+.admin-over {
+  color: var(--in-color-status-danger);
+}
+
+.admin-check {
+  display: block;
+  margin-top: 8px;
+  color: var(--in-color-text-primary);
+}
+
+.admin-test {
+  font-size: 0.8rem;
+}
+
+.admin-session-item {
+  cursor: default;
+}
+
+.admin-tariff-key {
+  min-width: 260px;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.admin-tariff-field {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.admin-tariff-field .in-input {
+  width: 110px;
+  margin-bottom: 0;
+}
+
+.summary-box {
+  white-space: pre-wrap;
+  border: 1px solid var(--in-color-border-subtle);
+  border-radius: var(--in-radius-md);
+  padding: 12px;
+  font-size: 0.9rem;
 }

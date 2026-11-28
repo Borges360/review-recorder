@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, eventsWsUrl, audioWsUrl, formatTimer, type SessionRecord } from './api';
 import { AudioCapture } from './audio/AudioCapture';
 import { SessionDetailPage } from './SessionDetailPage';
-import { navigate, sessionPath, useSessionRoute } from './routing';
+import { AdminLlmPage } from './AdminLlmPage';
+import { ADMIN_PATH, navigate, sessionPath, useAdminRoute, useSessionRoute } from './routing';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -11,6 +12,7 @@ function formatDate(iso: string): string {
 
 export default function App() {
   const routeSessionId = useSessionRoute();
+  const adminRoute = useAdminRoute();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [initialUrl, setInitialUrl] = useState('http://127.0.0.1:3000/demo/');
@@ -299,6 +301,10 @@ export default function App() {
   const recoverableSessions = sessions.filter((s) => s.status === 'RECOVERABLE');
   const recentSessions = sessions.filter((s) => s.status !== 'RECOVERABLE');
 
+  if (adminRoute && !recording) {
+    return <AdminLlmPage />;
+  }
+
   if (routeSessionId && !recording) {
     return <SessionDetailPage sessionId={routeSessionId} />;
   }
@@ -426,6 +432,13 @@ export default function App() {
           ))}
         </div>
       )}
+
+      <button
+        className="in-button in-button--ghost in-button--sm admin-link"
+        onClick={() => navigate(ADMIN_PATH)}
+      >
+        Provedores de IA e custos
+      </button>
 
       {recentSessions.length > 0 && (
         <div className="sessions-list">

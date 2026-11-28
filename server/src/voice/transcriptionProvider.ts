@@ -23,7 +23,7 @@ function apiKey(value: string | undefined): string | null {
   return value?.trim() || null;
 }
 
-function secureBaseUrl(value: string | undefined, fallback: string): string {
+export function secureBaseUrl(value: string | undefined, fallback: string): string {
   const baseUrl = (value?.trim() || fallback).replace(/\/+$/, '');
   let parsed: URL;
   try {

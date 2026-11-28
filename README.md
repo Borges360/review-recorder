@@ -45,6 +45,11 @@ transcrição HTTP (chunks da extensão, fallback offline ao parar e `recover-tr
   modo Playwright) usa `OPENAI_API_KEY` independentemente do seletor e fica fora do teto
   mensal do OpenRouter.
 
+Provedor e modelo por tarefa, custo estimado e orçamento mensal também podem ser
+escolhidos no painel **Provedores de IA e custos** (`/admin/llm` na Control UI). Chaves
+das três plataformas (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`) entram
+só por ambiente. Passo a passo em [`docs/llm-providers.md`](docs/llm-providers.md).
+
 ## Desenvolvimento
 
 ```bash

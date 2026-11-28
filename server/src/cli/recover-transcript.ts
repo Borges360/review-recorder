@@ -1,6 +1,8 @@
 import { loadConfig } from '../shared/config.js';
 import { SessionRepository } from '../persistence/SessionRepository.js';
 import { recoverSessionTranscript } from '../voice/recoverTranscript.js';
+import { createLlmService } from '../llm/factory.js';
+import pg from 'pg';
 
 const sessionId = process.argv[2];
 const force = process.argv.includes('--force');
@@ -12,8 +14,10 @@ if (!sessionId) {
 
 const config = loadConfig();
 const repo = new SessionRepository(config.sessionsDir);
+const pool = config.databaseUrl ? new pg.Pool({ connectionString: config.databaseUrl }) : null;
 
-recoverSessionTranscript(sessionId, config, repo, { force })
+createLlmService(config, pool)
+  .then((llm) => recoverSessionTranscript(sessionId, config, repo, { force, llm }))
   .then((result) => {
     if (result.skipped) {
       console.log('Transcript already present — recompiled only.');
@@ -26,4 +30,5 @@ recoverSessionTranscript(sessionId, config, repo, { force })
   .catch((err) => {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);
-  });
+  })
+  .finally(() => void pool?.end());
