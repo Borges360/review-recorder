@@ -42,14 +42,19 @@ Caminho no homelab (o agente nunca vê os valores):
 
 Também defina, para liberar o painel no homelab (o container escuta em `0.0.0.0`):
 
-- `ADMIN_TOKEN` (recomendado): só ele abre `/admin/*`. Sem ele vale o `API_TOKEN`.
-- Sem nenhum dos dois, `/admin` responde **403** quando `HOST` não é loopback (comportamento seguro por padrão).
+- `ADMIN_TOKEN` (obrigatório para alterar): só ele abre `/admin/*` quando definido. Sem ele, o `API_TOKEN` comum só
+  **consulta** o painel (`GET`); `PUT /admin/llm` e `POST /admin/llm/test` respondem **403** (`admin_token_required`),
+  para que qualquer cliente da API não vire admin.
+- Sem nenhum dos dois, `/admin` responde **403** quando `HOST` não é loopback, e em loopback só aceita requisição
+  direta: se chegar com `X-Forwarded-*`, `Forwarded` ou `X-Real-IP` (reverse proxy/túnel no mesmo host), também **403**.
 
 Local: copie `.env.example` para `.env` e preencha só as chaves que for usar.
 
-Referência de chave alternativa: no painel dá para apontar um provedor para outra variável (por exemplo
-`TEAM_OPENAI_API_KEY`). Só nomes terminados em `_API_KEY` são aceitos, para o painel não apontar para variáveis
-como `DATABASE_URL`.
+Referência de chave alternativa: o admin só pode apontar um provedor para a variável padrão dele ou para nomes que o
+**operador declarou** no ambiente, por provedor: `LLM_KEY_REFS_OPENAI`, `LLM_KEY_REFS_OPENROUTER`,
+`LLM_KEY_REFS_ANTHROPIC` (lista separada por vírgula, só nomes `*_API_KEY`; por exemplo
+`LLM_KEY_REFS_OPENAI=TEAM_OPENAI_API_KEY`). Chave de outro provedor ou de outro serviço (`STRIPE_API_KEY`) é recusada
+com 400, para ninguém redirecionar um segredo do processo ao host de um provedor.
 
 ## 2. Escolher provedor e modelo no painel
 
@@ -63,8 +68,16 @@ como `DATABASE_URL`.
    ao provedor escolhido; por isso vem desligado. Na sessão concluída aparece o botão **Gerar resumo**.
 5. Defina o **orçamento mensal** (estimado) e a ação: *só avisar* ou *bloquear chamadas pagas*. No modo bloquear,
    transcrição offline, realtime e resumo deixam de chamar o provedor quando o gasto estimado do mês atinge o limite
-   (o áudio continua sendo gravado localmente e dá para recuperar depois).
-6. **Salvar configuração**. Cada alteração entra na auditoria (`GET /admin/llm/audit`) só com os nomes dos campos
+   (o áudio continua sendo gravado localmente e dá para recuperar depois). **Modelo sem tarifa** conta custo zero, então
+   no modo bloquear a chamada é **recusada** (`unpriced_model`) até você cadastrar a tarifa na seção **Tarifas**; o
+   painel marca a tarefa como "sem tarifa". Se a leitura do uso falhar (banco fora), a gravação **não** é bloqueada: o
+   servidor registra um aviso e libera a chamada.
+6. Na tarefa de resumo, escolha o **esforço de raciocínio** (padrão do provedor, baixo, médio, alto) se o modelo for de
+   raciocínio. Ele vira `reasoning_effort` (OpenAI), `reasoning.effort` (OpenRouter) ou `output_config.effort`
+   (Anthropic) e só é enviado quando você escolhe; o limite de tokens de saída sobe junto (1024/4096/8192) para o
+   raciocínio não consumir a resposta. Se mesmo assim o modelo devolver texto vazio, o resumo falha com
+   `upstream_error` (a chamada é registrada como falha e cobrada), nada é gravado em `summary.json`.
+7. **Salvar configuração**. Cada alteração entra na auditoria (`GET /admin/llm/audit`) só com os nomes dos campos
    alterados, nunca com valores de chave.
 
 Onde a configuração é guardada: Postgres (`app_settings`, `llm_usage`, `llm_audit`) quando há `DATABASE_URL`;
@@ -79,6 +92,9 @@ caso contrário arquivos em `DATA_DIR` (`llm-settings.json`, `llm-usage.jsonl`, 
 - As tarifas embutidas (`builtin-2026-11`) são **estimativas**. Confira nas páginas de preço de cada provedor e ajuste na
   seção **Tarifas**; cada edição gera uma nova revisão (`builtin-2026-11+custom#N`) gravada em cada registro de uso, então
   o histórico não é reescrito. Modelo sem tarifa fica com custo desconhecido e aparece como "sem tarifa" (fora do total).
+- O gasto do mês usado para o orçamento é lido do banco uma vez e mantido em memória (renovado a cada 30 s e somado a
+  cada nova chamada), então checar o teto a cada chunk não varre o mês inteiro. Em mais de uma réplica o teto pode
+  ultrapassar o limite por alguns segundos; o uso do realtime só é registrado ao parar a sessão (um crash perde esse registro).
 - Não há usuários neste sistema (ferramenta single-tenant): não existe limite por usuário, apenas o orçamento mensal global.
 
 ## 4. Validar
