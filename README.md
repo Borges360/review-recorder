@@ -25,6 +25,11 @@ selecionar OpenRouter, configure `TRANSCRIPTION_PROVIDER=openrouter` e uma chave
 OpenRouter limitada ao projeto e ambiente. A troca preserva o modelo
 `openai/gpt-4o-transcribe`.
 
+Provedor e modelo por tarefa, custo estimado e orçamento mensal também podem ser
+escolhidos no painel **Provedores de IA e custos** (`/admin/llm` na Control UI). Chaves
+das três plataformas (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`) entram
+só por ambiente. Passo a passo em [`docs/llm-providers.md`](docs/llm-providers.md).
+
 ## Desenvolvimento
 
 ```bash

@@ -36,7 +36,8 @@ server/src/
 ├── browser/      # Playwright, screenshots, interações in-page
 ├── session/      # ciclo de vida da sessão (CREATED → COMPLETED)
 ├── timeline/     # redução de eventos → timeline semântica
-├── voice/        # transcrição (OpenAI, fake, offline)
+├── voice/        # Transcriber {offline, realtime}: adapters OpenAI/OpenRouter (Anthropic: sem STT), fake
+├── llm/          # rota provedor/modelo por tarefa, custo, orçamento, resumo opcional (admin em /admin/llm)
 ├── export/       # REVIEW.md + review.json
 ├── persistence/  # EventStore, SessionRepository
 └── shared/       # types, config, events
